@@ -1,44 +1,110 @@
 import React, { useEffect, useState } from 'react';
-import { MessageSquare, Phone, Send, Users, Mail } from 'lucide-react';
+import { MessageSquare, MessageCircle, Phone, Send, Users, Mail, Bell, RefreshCw, Plus, Trash2, Save, CheckCircle, AlertTriangle, XIcon } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card, { CardHeader } from '../../components/ui/Card';
+import Input from '../../components/ui/Input';
 import { Table, Thead, Th, Tbody, Tr, Td } from '../../components/ui/Table';
 import { PageLoader } from '../../components/ui/Loader';
 import Badge from '../../components/ui/Badge';
+import Select from '../../components/ui/Select';
 import { adminService } from '../../services/admin.service';
-import { formatDate } from '../../utils/formatters';
+import { authService } from '../../services/auth.service';
+import api from '../../services/api';
+import { formatDate, classNames } from '../../utils/formatters';
 import { toast } from '../../store/useToastStore';
 
-const CHANNELS = [
-  { value: 'sms',       label: 'SMS',       icon: MessageSquare, color: 'text-blue-600 bg-blue-50 border-blue-200' },
-  { value: 'whatsapp',  label: 'WhatsApp',  icon: MessageSquare, color: 'text-green-600 bg-green-50 border-green-200' },
-  { value: 'call',      label: 'Call',      icon: Phone,         color: 'text-orange-600 bg-orange-50 border-orange-200' },
-  { value: 'email',     label: 'Email',     icon: Mail,          color: 'text-violet-600 bg-violet-50 border-violet-200' },
+const RuleChannelToggle = ({ selected = [], onChange }) => {
+  const channels = [
+    { id: 'sms', icon: <MessageSquare size={14} />, label: 'SMS' },
+    { id: 'whatsapp', icon: <MessageCircle size={14} />, label: 'WP' },
+    { id: 'email', icon: <Mail size={14} />, label: 'Email' },
+    { id: 'call', icon: <Phone size={14} />, label: 'Voice' },
+  ];
+
+  return (
+    <div className="flex gap-1 bg-white border border-slate-200 p-1 rounded-lg">
+      {channels.map(ch => {
+        const isActive = selected.includes(ch.id);
+        return (
+          <button
+            key={ch.id}
+            type="button"
+            onClick={() => {
+              const next = isActive 
+                ? (selected.length > 1 ? selected.filter(x => x !== ch.id) : selected) 
+                : [...selected, ch.id];
+              onChange(next);
+            }}
+            className={classNames(
+              'w-8 h-8 flex items-center justify-center rounded-md transition-all',
+              isActive ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-50'
+            )}
+            title={ch.label}
+          >
+            {ch.icon}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+const TEXT_OPTIONS = [
+  { value: 'sms', label: 'SMS', icon: MessageSquare, cost: 0.12 },
+  { value: 'whatsapp', label: 'WhatsApp', icon: MessageSquare, cost: 0.12 },
+  { value: 'email', label: 'Email', icon: Mail, cost: 0 },
+];
+
+const VOICE_OPTIONS = [
+  { value: 'call', label: 'Voice Call', icon: Phone, cost: 0.12 },
 ];
 
 const CREDIT_COST = 0.12;
 
 export default function CommunicatePage() {
-  const [credits, setCredits] = useState(null);
+  // Credits & Ledger
+  const [balances, setBalances] = useState(null);
   const [ledger, setLedger] = useState([]);
   const [ledgerMeta, setLedgerMeta] = useState({});
   const [ledgerPage, setLedgerPage] = useState(1);
   const [loading, setLoading] = useState(true);
 
-  const [channel, setChannel] = useState('sms');
-  const [audience, setAudience] = useState('all'); // 'all' | 'selected'
+  // General New Message State
+  const [mainTab, setMainTab] = useState('text'); // 'text' | 'voice'
+  const [msgType, setMsgType] = useState('normal'); // 'normal' | 'reminder'
+  const [textChannels, setTextChannels] = useState(['sms']);
+  const [voiceChannel, setVoiceChannel] = useState(['call']);
+
+  // Normal Msg State
+  const [audience, setAudience] = useState('all'); // 'all' | 'class' | 'student'
+  const [selectedClasses, setSelectedClasses] = useState([]);
+  const [selectedStudents, setSelectedStudents] = useState([]);
+  const [classesList, setClassesList] = useState([]);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentSuggestions, setStudentSuggestions] = useState([]);
+  const [isSearchingStudents, setIsSearchingStudents] = useState(false);
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
-
-  // Student count cache (for cost preview)
   const [totalStudents, setTotalStudents] = useState(null);
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [showScheduler, setShowScheduler] = useState(false);
+
+  // Reminder State
+  const [reminderMessageTemplate, setReminderMessageTemplate] = useState('');
+  const [reminderRules, setReminderRules] = useState([]);
+  const [overdueRules, setOverdueRules] = useState([]);
+  const [overdueRepeatRule, setOverdueRepeatRule] = useState(null);
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [savingReminder, setSavingReminder] = useState(false);
+  const [savingOverdue, setSavingOverdue] = useState(false);
+  const [savingRepeat, setSavingRepeat] = useState(false);
 
   const loadCredits = async (p = 1) => {
     try {
       const res = await adminService.getCredits({ page: p, limit: 10 });
-      setCredits(res.data.balance);
-      setLedger(res.data.entries);
-      setLedgerMeta(res.data.meta);
+      setBalances(res.data.balances || { sms: 0, whatsapp: 0, call: 0 });
+      setLedger(res.data.entries || []);
+      setLedgerMeta(res.data.meta || {});
       setLedgerPage(p);
     } catch {
       toast.error('Failed to load credit info');
@@ -52,38 +118,181 @@ export default function CommunicatePage() {
     } catch { /* silent */ }
   };
 
+  const loadClasses = async () => {
+    try {
+      const res = await api.get('/students/classes');
+      setClassesList(res.data || []);
+    } catch { /* silent */ }
+  };
+
+  const handleStudentSearch = async (q) => {
+    setStudentSearch(q);
+    if (q.length < 2) { setStudentSuggestions([]); return; }
+    setIsSearchingStudents(true);
+    try {
+      const res = await api.get('/students', { params: { q, limit: 10 } });
+      setStudentSuggestions(res.data || []);
+    } catch { /* silent */ } finally {
+      setIsSearchingStudents(false);
+    }
+  };
+
+  const loadRules = async () => {
+    try {
+      const res = await authService.adminProfile();
+      if (res.data) {
+        setReminderRules((res.data.reminderRules || []).map(r => ({ ...r, channels: r.channels || [r.channel || 'sms'] })));
+        setOverdueRules((res.data.overdueRules || []).map(r => ({ ...r, channels: r.channels || [r.channel || 'sms'] })));
+        if (res.data.overdueRepeatRule) {
+          const rr = res.data.overdueRepeatRule;
+          setOverdueRepeatRule({ ...rr, channels: rr.channels || [rr.channel || 'sms'] });
+          setRepeatEnabled(true);
+        }
+        setReminderMessageTemplate(res.data.reminderMessageTemplate || 'Dear Parent, this is a reminder to pay the pending fee for your child.');
+      }
+    } catch {
+      toast.error('Failed to load reminder rules');
+    }
+  };
+
   useEffect(() => {
-    Promise.all([loadCredits(1), loadStudentCount()]).finally(() => setLoading(false));
+    Promise.all([loadCredits(1), loadStudentCount(), loadRules(), loadClasses()]).finally(() => setLoading(false));
   }, []);
 
-  const isFreeChannel = channel === 'email';
+  // Compute total balance across all paid channels for the simple top banner
+  const totalBalance = balances ? (balances.sms + balances.whatsapp + balances.call) : 0;
 
-  const estimatedCost = isFreeChannel
-    ? 0
-    : audience === 'all' && totalStudents
-      ? parseFloat((totalStudents * CREDIT_COST).toFixed(4))
-      : null;
-
-  const canSend = message.trim().length > 0 &&
-    (isFreeChannel ||
-      (credits !== null && (estimatedCost === null || credits >= estimatedCost)));
-
-  const handleSend = async () => {
+  // Normal Send Logic
+  const handleSendNormal = async () => {
     if (!message.trim()) { toast.error('Please enter a message'); return; }
+    
+    const channels = mainTab === 'text' ? textChannels : voiceChannel;
+    if (channels.length === 0) { toast.error('Please select at least one channel'); return; }
+
+    const target = { type: audience };
+    if (audience === 'class') {
+      if (selectedClasses.length === 0) { toast.error('Please select at least one class'); return; }
+      target.classes = selectedClasses;
+    } else if (audience === 'student') {
+      if (selectedStudents.length === 0) { toast.error('Please select at least one student'); return; }
+      target.studentIds = selectedStudents.map(s => s._id);
+    }
+
     setSending(true);
     try {
-      const res = await adminService.communicate({
-        channel,
-        studentIds: audience === 'all' ? 'all' : [],
+      await adminService.communicate({
+        channels,
         message: message.trim(),
+        target,
+        scheduledAt: scheduledAt || null
       });
-      toast.success(res.message);
+      toast.success(scheduledAt ? 'Message scheduled successfully' : 'Message sent successfully');
       setMessage('');
+      setSelectedStudents([]);
+      setSelectedClasses([]);
+      setScheduledAt('');
+      setShowScheduler(false);
       loadCredits(1);
     } catch (err) {
-      toast.error(err.message || 'Failed to send');
+      toast.error(err.response?.data?.message || err.message || 'Failed to send message');
     } finally {
       setSending(false);
+    }
+  };
+
+  // Rule updaters
+  const updateRule = (idx, field, value) => setReminderRules((prev) => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  const addRule = () => setReminderRules((prev) => [...prev, { daysBefore: '', timesPerDay: 1, channels: ['sms'] }]);
+  const removeRule = (idx) => setReminderRules((prev) => prev.filter((_, i) => i !== idx));
+
+  const updateOverdueRule = (idx, field, value) => setOverdueRules((prev) => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  const addOverdueRule = () => setOverdueRules((prev) => [...prev, { daysAfter: '', timesPerDay: 1, channels: ['sms'] }]);
+  const removeOverdueRule = (idx) => setOverdueRules((prev) => prev.filter((_, i) => i !== idx));
+
+  // Save Rules
+  const handleSaveReminder = async () => {
+    for (const [i, r] of reminderRules.entries()) {
+      const db = Number(r.daysBefore);
+      const tp = Number(r.timesPerDay);
+      if (isNaN(db) || db < 0 || db > 60) { toast.error(`Rule ${i + 1}: days before must be 0–60`); return; }
+      if (!tp || tp < 1 || tp > 5)        { toast.error(`Rule ${i + 1}: times per day must be 1–5`); return; }
+    }
+    const days = reminderRules.map((r) => Number(r.daysBefore));
+    if (new Set(days).size !== days.length) { toast.error('Each rule must have a unique "days before" value'); return; }
+
+    setSavingReminder(true);
+    try {
+      const payload = reminderRules.map((r) => ({
+        daysBefore: Number(r.daysBefore),
+        timesPerDay: Number(r.timesPerDay),
+        channels: r.channels || ['sms']
+      }));
+      await api.patch('/admin/me/reminder-settings', { 
+        reminderRules: payload,
+        reminderMessageTemplate 
+      });
+      toast.success('Pre-due Reminder rules and template saved');
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to save rules');
+    } finally {
+      setSavingReminder(false);
+    }
+  };
+
+  const handleSaveOverdueRules = async () => {
+    for (const [i, r] of overdueRules.entries()) {
+      const da = Number(r.daysAfter);
+      const tp = Number(r.timesPerDay);
+      if (isNaN(da) || da < 1 || da > 180) { toast.error(`Overdue rule ${i + 1}: days after must be 1–180`); return; }
+      if (!tp || tp < 1 || tp > 5)          { toast.error(`Overdue rule ${i + 1}: times per day must be 1–5`); return; }
+    }
+    const days = overdueRules.map((r) => Number(r.daysAfter));
+    if (new Set(days).size !== days.length) { toast.error('Each overdue rule must have a unique "days after" value'); return; }
+    
+    setSavingOverdue(true);
+    try {
+      const payload = overdueRules.map((r) => ({
+        daysAfter: Number(r.daysAfter),
+        timesPerDay: Number(r.timesPerDay),
+        channels: r.channels || ['sms'],
+      }));
+      await api.patch('/admin/me/overdue-settings', { 
+        overdueRules: payload,
+        reminderMessageTemplate
+      });
+      toast.success('Overdue rules and template saved');
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to save overdue rules');
+    } finally {
+      setSavingOverdue(false);
+    }
+  };
+
+  const handleSaveRepeatRule = async () => {
+    if (!repeatEnabled) {
+      await api.patch('/admin/me/overdue-repeat-rule', { overdueRepeatRule: null });
+      toast.success('Continuous reminders disabled');
+      return;
+    }
+    const id = Number(overdueRepeatRule?.intervalDays);
+    const tp = Number(overdueRepeatRule?.timesPerDay);
+    if (!id || id < 1 || id > 30) { toast.error('Repeat interval must be 1–30 days'); return; }
+    if (!tp || tp < 1 || tp > 5)  { toast.error('Times per day must be 1–5'); return; }
+    setSavingRepeat(true);
+    try {
+      await api.patch('/admin/me/overdue-repeat-rule', {
+        overdueRepeatRule: {
+          intervalDays: id,
+          timesPerDay: tp,
+          channels: overdueRepeatRule?.channels || ['sms'],
+        },
+        reminderMessageTemplate
+      });
+      toast.success('Continuous reminder rule and template saved');
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to save repeat rule');
+    } finally {
+      setSavingRepeat(false);
     }
   };
 
@@ -98,17 +307,17 @@ export default function CommunicatePage() {
           <p className="text-sm text-gray-500 mt-0.5">Send SMS, WhatsApp, calls, or emails to your students.</p>
         </div>
         <div className="md:hidden bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 text-right">
-          <p className="text-[10px] text-indigo-600 uppercase tracking-wider font-bold">Credits</p>
-          <p className="text-lg font-black text-indigo-900 leading-none">{credits?.toFixed(2) ?? '—'}</p>
+          <p className="text-[10px] text-indigo-600 uppercase tracking-wider font-bold">Total Credits</p>
+          <p className="text-lg font-black text-indigo-900 leading-none">{totalBalance.toFixed(2)}</p>
         </div>
       </div>
 
       {/* Top Alert Banner - only if low credits */}
-      {credits !== null && credits < 50 && (
+      {balances !== null && totalBalance < 50 && (
         <div className="bg-amber-100 text-amber-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 sm:px-8 py-3 rounded-xl mb-6">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-amber-600">warning</span>
-            <span className="text-sm font-medium">Low Credit Warning: You have less than 50 credits remaining.</span>
+            <span className="text-sm font-medium">Low Credit Warning: You have less than 50 total credits remaining.</span>
           </div>
           <button className="text-amber-700 font-bold text-sm underline w-full sm:w-auto text-left sm:text-right">Recharge Now</button>
         </div>
@@ -122,7 +331,7 @@ export default function CommunicatePage() {
           </div>
           <div>
             <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Total Credits</p>
-            <p className="text-2xl font-bold text-slate-900">{credits?.toFixed(2) ?? '—'}</p>
+            <p className="text-2xl font-bold text-slate-900">{totalBalance.toFixed(2)}</p>
           </div>
         </div>
         
@@ -132,7 +341,7 @@ export default function CommunicatePage() {
           </div>
           <div>
             <p className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-wider font-medium">Transactions</p>
-            <p className="text-xl sm:text-2xl font-bold text-slate-900">{ledgerMeta.total || '—'}</p>
+            <p className="text-xl sm:text-2xl font-bold text-slate-900">{ledgerMeta.total || '0'}</p>
           </div>
         </div>
         <div className="flex-1 bg-white border border-slate-200 p-3 sm:p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-4">
@@ -140,7 +349,7 @@ export default function CommunicatePage() {
             <span className="material-symbols-outlined">group</span>
           </div>
           <div>
-            <p className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-wider font-medium">Recipients</p>
+            <p className="text-[10px] sm:text-xs text-slate-500 uppercase tracking-wider font-medium">Active Students</p>
             <p className="text-xl sm:text-2xl font-bold text-slate-900">{totalStudents ?? '—'}</p>
           </div>
         </div>
@@ -149,163 +358,462 @@ export default function CommunicatePage() {
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Center Main Panel (70%) */}
         <div className="w-full lg:w-[70%] space-y-6">
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">New Message</h2>
-              <div className="flex flex-wrap sm:flex-nowrap bg-slate-50 p-1 rounded-xl sm:rounded-full w-full md:w-auto gap-1">
-                {CHANNELS.map((ch) => (
-                  <button
-                    key={ch.value}
-                    onClick={() => setChannel(ch.value)}
-                    className={[
-                      'flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 sm:py-1.5 rounded-lg sm:rounded-full text-xs font-bold flex items-center gap-2 transition-colors whitespace-nowrap',
-                      channel === ch.value 
-                        ? 'bg-indigo-600 text-white shadow-sm' 
-                        : 'text-slate-600 hover:bg-slate-200'
-                    ].join(' ')}
-                  >
-                    <ch.icon size={14} />
-                    {ch.label}
-                    {channel === ch.value && ch.value !== 'email' && (
-                      <span className="opacity-70 font-normal ml-1">0.12 credits</span>
-                    )}
-                  </button>
-                ))}
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            
+            {/* Top Level Sub-Tabs */}
+            <div className="p-4 sm:p-6 pb-0 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex bg-slate-200/50 p-1 rounded-xl w-full sm:w-full mb-6">
+                <button onClick={() => setMainTab('text')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${mainTab === 'text' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>Text Messages</button>
+                <button onClick={() => setMainTab('voice')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-colors ${mainTab === 'voice' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>Voice Calls</button>
+              </div>
+
+              {/* Channel Selection & Balances */}
+              <div className="mb-6">
+                <h3 className="text-sm font-bold text-slate-800 mb-3">Select Channels</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {(mainTab === 'text' ? TEXT_OPTIONS : VOICE_OPTIONS).map(opt => {
+                    const activeArray = mainTab === 'text' ? textChannels : voiceChannel;
+                    const isSelected = activeArray.includes(opt.value);
+                    const toggle = () => {
+                      if (mainTab === 'voice') return; // Call is the only voice option
+                      setTextChannels(prev => 
+                        prev.includes(opt.value) 
+                          ? prev.filter(c => c !== opt.value) 
+                          : [...prev, opt.value]
+                      );
+                    };
+                    const balance = opt.value === 'email' ? 'Unlimited' : (balances?.[opt.value]?.toFixed(2) ?? '0.00');
+                    return (
+                      <div key={opt.value} onClick={toggle} className={`cursor-pointer border p-3 rounded-xl flex items-center justify-between transition-all ${isSelected ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600' : 'border-slate-200 hover:border-indigo-300 bg-white'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${isSelected ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                            <opt.icon size={16} />
+                          </div>
+                          <div>
+                            <p className={`text-sm font-bold ${isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>{opt.label}</p>
+                            <p className="text-[10px] text-slate-500">{opt.cost > 0 ? `${opt.cost} credits/msg` : 'Free'}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Balance</p>
+                          <p className={`text-sm font-bold ${isSelected ? 'text-indigo-700' : 'text-slate-600'}`}>{balance}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
             <div className="p-4 sm:p-6 space-y-6">
-              {/* Recipients Dropdown */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Recipients</label>
-                <div className="w-full border border-slate-200 rounded-lg p-2 flex flex-wrap gap-2 items-center bg-white focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20">
-                  <button 
-                    onClick={() => setAudience(audience === 'all' ? 'selected' : 'all')}
-                    className={[
-                      "px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 border transition-colors",
-                      audience === 'all' 
-                        ? "bg-indigo-50 text-indigo-700 border-indigo-100"
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                    ].join(' ')}
-                  >
-                    All Active Students ({totalStudents ?? 0})
-                    {audience === 'all' && <span className="material-symbols-outlined text-[14px]">close</span>}
-                  </button>
-                  <input className="flex-1 min-w-[200px] border-none focus:ring-0 text-sm py-1 outline-none" placeholder="Search students, classes, or parents..." type="text"/>
-                </div>
+              {/* Message Type Toggle */}
+              <div className="flex gap-6 border-b border-slate-200">
+                <button onClick={() => setMsgType('normal')} className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${msgType === 'normal' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+                  <Send size={16} /> One-Time Message
+                </button>
+                <button onClick={() => setMsgType('reminder')} className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${msgType === 'reminder' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+                  <Bell size={16} /> Automated Reminders
+                </button>
               </div>
 
-              {/* Templates */}
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-2 uppercase tracking-wider">Quick Templates</label>
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => setMessage("Dear Parent, this is a reminder to pay the pending fee for your child.")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Fee Reminder</button>
-                  <button onClick={() => setMessage("We have received your recent payment. Thank you!")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Payment Confirmation</button>
-                  <button onClick={() => setMessage("Important: School will remain closed tomorrow.")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Event Notice</button>
-                </div>
-              </div>
+              {msgType === 'normal' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  {/* Recipients Selection */}
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                      {[
+                        { id: 'all', label: 'All Students', icon: <Users size={14} /> },
+                        { id: 'class', label: 'By Class', icon: <Plus size={14} /> },
+                        { id: 'student', label: 'Studentwise', icon: <Users size={14} /> },
+                      ].map(type => (
+                        <button
+                          key={type.id}
+                          onClick={() => setAudience(type.id)}
+                          className={classNames(
+                            'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border whitespace-nowrap',
+                            audience === type.id 
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
+                              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                          )}
+                        >
+                          {type.icon}
+                          {type.label}
+                        </button>
+                      ))}
+                    </div>
 
-              {/* Textarea */}
-              <div className="relative">
-                <textarea 
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  className="w-full h-[200px] border border-slate-200 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none outline-none" 
-                  placeholder="Type your message here... Use {student_name} or {amount_due} for variables."
-                />
-                <div className="absolute bottom-4 right-4 bg-white/80 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-slate-500 border border-slate-100">
-                  {message.length} chars
-                </div>
-              </div>
+                    {audience === 'class' && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 animate-in zoom-in-95 duration-200">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase mb-3">Select Classes</p>
+                        <div className="flex flex-wrap gap-2">
+                          {classesList.map(c => (
+                            <button
+                              key={c.class}
+                              onClick={() => setSelectedClasses(prev => prev.includes(c.class) ? prev.filter(x => x !== c.class) : [...prev, c.class])}
+                              className={classNames(
+                                'px-3 py-1.5 rounded-lg text-xs font-bold border transition-all',
+                                selectedClasses.includes(c.class)
+                                  ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                                  : 'bg-white text-slate-600 border-slate-100 hover:border-slate-200'
+                              )}
+                            >
+                              {c.class}
+                            </button>
+                          ))}
+                          {classesList.length === 0 && <p className="text-xs text-slate-400">No classes found.</p>}
+                        </div>
+                      </div>
+                    )}
 
-              {/* Info Banner Contextual Math */}
-              {isFreeChannel ? (
-                <div className="bg-green-50 text-green-800 p-4 rounded-xl flex items-start gap-3 border border-green-100">
-                  <span className="material-symbols-outlined text-green-600">info</span>
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold">Email is free</p>
-                    <p className="text-xs">Sending to {totalStudents ?? 0} students. No credits will be used.</p>
+                    {audience === 'student' && (
+                      <div className="space-y-3 bg-slate-50 border border-slate-200 rounded-xl p-4 animate-in zoom-in-95 duration-200">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">Search & Add Students</p>
+                        
+                        {/* Selected Students Chips */}
+                        {selectedStudents.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {selectedStudents.map(s => (
+                              <div key={s._id} className="flex items-center gap-1.5 bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg border border-indigo-200">
+                                <span className="text-[11px] font-bold">{s.name}</span>
+                                <button onClick={() => setSelectedStudents(prev => prev.filter(x => x._id !== s._id))} className="hover:text-indigo-900 transition-colors">
+                                  <XIcon size={12} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
+                            <Users size={16} />
+                          </div>
+                          <input 
+                            type="text"
+                            value={studentSearch}
+                            onChange={(e) => handleStudentSearch(e.target.value)}
+                            className="w-full bg-white border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+                            placeholder="Type student name or ID..."
+                          />
+                          {isSearchingStudents && <div className="absolute right-3 top-2.5"><RefreshCw size={14} className="animate-spin text-slate-400" /></div>}
+
+                          {studentSuggestions.length > 0 && (
+                            <div className="absolute z-50 left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2">
+                              {studentSuggestions.map(s => (
+                                <button
+                                  key={s._id}
+                                  onClick={() => {
+                                    if (!selectedStudents.some(x => x._id === s._id)) {
+                                      setSelectedStudents(prev => [...prev, s]);
+                                    }
+                                    setStudentSearch('');
+                                    setStudentSuggestions([]);
+                                  }}
+                                  className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition-colors text-left"
+                                >
+                                  <div>
+                                    <p className="text-sm font-bold text-slate-900">{s.name}</p>
+                                    <p className="text-[10px] text-slate-500">{s.studentId} • Class {s.class || 'N/A'}</p>
+                                  </div>
+                                  <Plus size={14} className="text-indigo-600" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ) : estimatedCost !== null && credits < estimatedCost ? (
-                <div className="bg-red-50 text-red-800 p-4 rounded-xl flex items-start gap-3 border border-red-100">
-                  <span className="material-symbols-outlined text-red-600">error_outline</span>
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold">Insufficient Credits</p>
-                    <p className="text-xs">Sending to {totalStudents ?? 0} students × 0.12 = {estimatedCost.toFixed(2)} credits needed. Your current balance is {credits?.toFixed(2)}.</p>
+
+                  {/* Templates */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-2 uppercase tracking-wider">Quick Templates</label>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => setMessage("Dear Parent, this is a reminder to pay the pending fee for your child.")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Fee Reminder</button>
+                      <button onClick={() => setMessage("We have received your recent payment. Thank you!")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Payment Confirmation</button>
+                      <button onClick={() => setMessage("Important: School will remain closed tomorrow.")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Event Notice</button>
+                    </div>
                   </div>
-                </div>
-              ) : estimatedCost !== null && (
-                <div className="bg-indigo-50 text-indigo-800 p-4 rounded-xl flex items-start gap-3 border border-indigo-100">
-                  <span className="material-symbols-outlined text-indigo-600">info</span>
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold">Estimated Cost</p>
-                    <p className="text-xs">Sending to {totalStudents ?? 0} students × 0.12 = {estimatedCost.toFixed(2)} credits. Balance after: {Math.max(0, credits - estimatedCost).toFixed(2)}.</p>
+
+                  {/* Textarea */}
+                  <div className="relative">
+                    <textarea 
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      className="w-full h-[180px] border border-slate-200 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none outline-none" 
+                      placeholder="Type your message here... Use {student_name} or {amount_due} for variables."
+                    />
+                    <div className="absolute bottom-4 right-4 bg-white/80 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-slate-500 border border-slate-100">
+                      {message.length} chars
+                    </div>
+                  </div>
+
+                  {/* Action Row */}
+                  <div className="pt-4 space-y-4">
+                    {showScheduler && (
+                      <div className="flex flex-col sm:flex-row items-end gap-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 animate-in slide-in-from-top-2 duration-200">
+                        <div className="flex-1 w-full">
+                          <label className="block text-xs font-bold text-indigo-700 mb-1.5 uppercase tracking-wide">Select Delivery Date & Time</label>
+                          <input 
+                            type="datetime-local" 
+                            value={scheduledAt}
+                            onChange={(e) => setScheduledAt(e.target.value)}
+                            min={new Date().toISOString().slice(0, 16)}
+                            className="w-full bg-white border border-indigo-200 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none"
+                          />
+                        </div>
+                        <button onClick={() => { setShowScheduler(false); setScheduledAt(''); }} className="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors">
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
+                      {!showScheduler ? (
+                        <button 
+                          onClick={() => setShowScheduler(true)}
+                          className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all border border-transparent flex items-center justify-center gap-2"
+                        >
+                          <RefreshCw size={14} /> Schedule for later
+                        </button>
+                      ) : (
+                        <div />
+                      )}
+                      <Button 
+                        onClick={handleSendNormal} 
+                        loading={sending} 
+                        className="w-full sm:w-auto justify-center !bg-indigo-600 hover:!bg-indigo-700 !text-white px-8 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+                      >
+                        {scheduledAt ? 'Schedule Message' : 'Send Message'}
+                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Action Row */}
-              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-4">
-                <button className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all border border-transparent">
-                  Schedule for later
-                </button>
-                <Button 
-                  onClick={handleSend} 
-                  loading={sending} 
-                  disabled={!canSend} 
-                  className="w-full sm:w-auto justify-center !bg-indigo-600 hover:!bg-indigo-700 !text-white px-8 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
-                >
-                  Send {CHANNELS.find((c) => c.value === channel)?.label}
-                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                </Button>
-              </div>
+              {msgType === 'reminder' && (
+                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  {/* Reminder Message Template */}
+                  <div>
+                    <div className="mb-4">
+                      <h3 className="text-base font-bold text-slate-900">Custom Reminder Message</h3>
+                      <p className="text-sm text-slate-500 mt-1">This message will be used for all automated rules below.</p>
+                    </div>
+                    {/* Templates (Optional helper) */}
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium text-slate-700 mb-2 uppercase tracking-wider">Quick Templates</label>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => setReminderMessageTemplate("Dear Parent, this is a reminder to pay the pending fee for your child.")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Standard Reminder</button>
+                        <button onClick={() => setReminderMessageTemplate("Gentle reminder: Fees are due soon. Please pay to avoid late fines.")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Gentle Reminder</button>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <textarea 
+                        id="reminder-template-area"
+                        value={reminderMessageTemplate}
+                        onChange={(e) => setReminderMessageTemplate(e.target.value)}
+                        className="w-full h-[120px] border border-slate-200 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none outline-none" 
+                        placeholder="Type the reminder message template here..."
+                      />
+                      <div className="mt-2 flex flex-wrap gap-x-2 gap-y-2">
+                        {[
+                          { key: '{student_name}', label: 'Student Name' },
+                          { key: '{amount_due}', label: 'Amount Due' },
+                          { key: '{school_name}', label: 'School Name' },
+                          { key: '{due_date}', label: 'Due Date' },
+                          { key: '{payment_link}', label: 'Payment Link' },
+                          { key: '{urgency_line}', label: 'Urgency Hint' }
+                        ].map(v => (
+                          <button
+                            key={v.key}
+                            type="button"
+                            onClick={() => {
+                              const textarea = document.getElementById('reminder-template-area');
+                              if (!textarea) {
+                                setReminderMessageTemplate(prev => prev + ' ' + v.key);
+                                return;
+                              }
+                              const start = textarea.selectionStart;
+                              const end = textarea.selectionEnd;
+                              const text = reminderMessageTemplate;
+                              const before = text.substring(0, start);
+                              const after  = text.substring(end, text.length);
+                              setReminderMessageTemplate(before + v.key + after);
+                              // Refocus
+                              setTimeout(() => {
+                                textarea.focus();
+                                textarea.setSelectionRange(start + v.key.length, start + v.key.length);
+                              }, 0);
+                            }}
+                            className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50 transition-all cursor-pointer shadow-sm active:scale-95"
+                            title={`Click to insert ${v.label}`}
+                          >
+                            <span className="text-[10px] font-mono font-bold text-indigo-600">{v.key}</span>
+                            <span className="text-[10px] text-slate-400 group-hover:text-indigo-400 font-medium">{v.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <hr className="border-slate-100" />
+
+                  {/* Pre-due Rules */}
+                  <div>
+                    <div className="mb-4 flex justify-between items-end">
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                          <Bell size={16} className="text-indigo-600" /> Pre-Due Rules
+                        </h3>
+                        <p className="text-sm text-slate-500 mt-1">Reminders sent before the fee is due.</p>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                      <div className="grid grid-cols-[0.8fr_0.8fr_auto_auto] gap-3 mb-2 px-1">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Days before</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Frequency</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Channel</span>
+                        <span className="w-8" />
+                      </div>
+                      <div className="space-y-3">
+                        {reminderRules.map((rule, idx) => (
+                          <div key={idx} className="grid grid-cols-[0.8fr_0.8fr_auto_auto] gap-3 items-center">
+                            <Input placeholder="Days" type="number" value={rule.daysBefore} onChange={(e) => updateRule(idx, 'daysBefore', e.target.value)} />
+                            <Input placeholder="Times" type="number" value={rule.timesPerDay} onChange={(e) => updateRule(idx, 'timesPerDay', e.target.value)} />
+                            <RuleChannelToggle selected={rule.channels} onChange={(val) => updateRule(idx, 'channels', val)} />
+                            <button onClick={() => removeRule(idx)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                          </div>
+                        ))}
+                      </div>
+                      <button type="button" onClick={addRule} className="mt-4 flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-bold"><Plus size={15} /> Add Rule</button>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <Button loading={savingReminder} onClick={handleSaveReminder} className="!bg-indigo-600 !text-white hover:!bg-indigo-700 text-sm font-bold px-6 py-2 rounded-lg flex items-center gap-2"><Save size={16} /> Save Pre-Due Rules & Template</Button>
+                    </div>
+                  </div>
+
+                  {/* Overdue Rules */}
+                  <div>
+                    <div className="mb-4">
+                      <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <AlertTriangle size={16} className="text-orange-500" /> Overdue Rules
+                      </h3>
+                      <p className="text-sm text-slate-500 mt-1">Reminders sent after the due date.</p>
+                    </div>
+
+                    <div className="bg-orange-50/50 border border-orange-100 rounded-xl p-4">
+                      <div className="grid grid-cols-[0.8fr_0.8fr_auto_auto] gap-3 mb-2 px-1">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Days after</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Frequency</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Channel</span>
+                        <span className="w-8" />
+                      </div>
+                      {overdueRules.length === 0 && <p className="text-sm text-slate-400 mb-3 px-1">No rules yet.</p>}
+                      <div className="space-y-3">
+                        {overdueRules.map((rule, idx) => (
+                          <div key={idx} className="grid grid-cols-[0.8fr_0.8fr_auto_auto] gap-3 items-center">
+                            <Input placeholder="Days" type="number" value={rule.daysAfter} onChange={(e) => updateOverdueRule(idx, 'daysAfter', e.target.value)} />
+                            <Input placeholder="Times" type="number" value={rule.timesPerDay} onChange={(e) => updateOverdueRule(idx, 'timesPerDay', e.target.value)} />
+                            <RuleChannelToggle selected={rule.channels} onChange={(val) => updateOverdueRule(idx, 'channels', val)} />
+                            <button onClick={() => removeOverdueRule(idx)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                          </div>
+                        ))}
+                      </div>
+                      <button type="button" onClick={addOverdueRule} className="mt-4 flex items-center gap-1.5 text-sm text-orange-600 hover:text-orange-700 font-bold"><Plus size={15} /> Add Rule</button>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <Button variant="secondary" loading={savingOverdue} onClick={handleSaveOverdueRules} className="text-sm font-bold px-6 py-2 rounded-lg flex items-center gap-2"><Save size={16} /> Save Overdue Rules & Template</Button>
+                    </div>
+                  </div>
+
+                  {/* Continuous Repeat Rule */}
+                  <div>
+                    <div className="mb-4">
+                      <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                        <RefreshCw size={16} className="text-red-500" /> Continuous Overdue Reminders
+                      </h3>
+                      <p className="text-sm text-slate-500 mt-1">Repeat reminders every N days until the fee is paid.</p>
+                    </div>
+                    <div className="bg-red-50/50 border border-red-100 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-sm font-bold text-slate-800">Enable continuous reminders</span>
+                        <button onClick={() => { setRepeatEnabled(v => !v); if (!overdueRepeatRule) setOverdueRepeatRule({ intervalDays: 3, timesPerDay: 1, channels: ['sms'] }); }} className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${repeatEnabled ? 'bg-red-500' : 'bg-slate-200'}`}>
+                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${repeatEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                      </div>
+                      {repeatEnabled && (
+                        <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-center">
+                          <Input label="Interval (Days)" type="number" value={overdueRepeatRule?.intervalDays || ''} onChange={(e) => setOverdueRepeatRule(prev => ({ ...prev, intervalDays: e.target.value }))} />
+                          <Input label="Times per day" type="number" value={overdueRepeatRule?.timesPerDay || ''} onChange={(e) => setOverdueRepeatRule(prev => ({ ...prev, timesPerDay: e.target.value }))} />
+                          <div className="pt-6">
+                            <RuleChannelToggle selected={overdueRepeatRule?.channels} onChange={(val) => setOverdueRepeatRule(prev => ({ ...prev, channels: val }))} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <Button variant="secondary" loading={savingRepeat} onClick={handleSaveRepeatRule} className="text-sm font-bold px-6 py-2 rounded-lg flex items-center gap-2"><Save size={16} /> Save Continuous Rule & Template</Button>
+                    </div>
+                  </div>
+
+                </div>
+              )}
+
             </div>
           </div>
         </div>
 
         {/* Right Panel (30%) */}
         <div className="w-full lg:w-[30%] space-y-6">
-          {/* Credit Balance Card */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6">
+          {/* Credit Balances Card */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-sm">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <p className="text-xs text-slate-500 uppercase tracking-widest mb-1 font-medium">Credit Balance</p>
-                <h3 className="text-[32px] font-black text-slate-900 leading-none">{credits?.toFixed(2) ?? '—'}</h3>
-                <p className="text-xs text-indigo-600 font-medium mt-1">≈ {credits ? Math.floor(credits / CREDIT_COST) : 0} messages remaining</p>
+                <p className="text-xs text-slate-500 uppercase tracking-widest mb-1 font-bold">Total Credits</p>
+                <h3 className="text-[32px] font-black text-slate-900 leading-none">{totalBalance.toFixed(2)}</h3>
               </div>
-              <span className="material-symbols-outlined text-indigo-600 text-3xl">account_balance_wallet</span>
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <span className="material-symbols-outlined text-xl">account_balance_wallet</span>
+              </div>
             </div>
 
-            <table className="w-full text-xs mb-6 border-t border-slate-100 pt-4 mt-4">
-              <tbody>
-                <tr className="text-slate-500">
-                  <td className="py-2">SMS</td>
-                  <td className="text-right py-2 font-bold text-slate-800">0.12</td>
-                </tr>
-                <tr className="text-slate-500">
-                  <td className="py-2">Call</td>
-                  <td className="text-right py-2 font-bold text-slate-800">0.12</td>
-                </tr>
-                <tr className="text-slate-500">
-                  <td className="py-2">Email</td>
-                  <td className="text-right py-2 font-bold text-green-600">Free</td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="space-y-3 mt-6 mb-6">
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={14} className="text-blue-600" />
+                  <span className="text-sm font-bold text-slate-700">SMS</span>
+                </div>
+                <span className="font-bold text-slate-900">{balances?.sms?.toFixed(2) ?? '0.00'}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={14} className="text-green-600" />
+                  <span className="text-sm font-bold text-slate-700">WhatsApp</span>
+                </div>
+                <span className="font-bold text-slate-900">{balances?.whatsapp?.toFixed(2) ?? '0.00'}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Phone size={14} className="text-orange-600" />
+                  <span className="text-sm font-bold text-slate-700">Call</span>
+                </div>
+                <span className="font-bold text-slate-900">{balances?.call?.toFixed(2) ?? '0.00'}</span>
+              </div>
+            </div>
             
-            <button className="w-full border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all font-bold py-3 rounded-xl text-sm">
+            <button className="w-full border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all font-bold py-2.5 rounded-xl text-sm">
               Top Up Credits
             </button>
           </div>
 
           {/* Delivery Status */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6">
-            <h4 className="text-lg font-bold text-slate-900 mb-4">Delivery Status</h4>
+          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-sm">
+            <h4 className="text-base font-bold text-slate-900 mb-4">Delivery Status</h4>
             <div className="grid grid-cols-1 gap-3">
               <div className="flex items-center justify-between p-3 bg-green-50 border border-green-100 rounded-lg">
                 <div className="flex items-center gap-2 text-green-700">
-                  <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                  <CheckCircle size={16} />
                   <span className="text-xs font-bold uppercase tracking-wider">Delivered</span>
                 </div>
                 <span className="font-black text-green-700">98%</span>
@@ -319,7 +827,7 @@ export default function CommunicatePage() {
               </div>
               <div className="flex items-center justify-between p-3 bg-red-50 border border-red-100 rounded-lg">
                 <div className="flex items-center gap-2 text-red-700">
-                  <span className="material-symbols-outlined text-[16px]">error</span>
+                  <AlertTriangle size={16} />
                   <span className="text-xs font-bold uppercase tracking-wider">Failed</span>
                 </div>
                 <span className="font-black text-red-700">0.5%</span>
@@ -328,9 +836,9 @@ export default function CommunicatePage() {
           </div>
 
           {/* Recent Transactions */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
             <div className="p-4 border-b border-slate-100">
-              <h4 className="text-lg font-bold text-slate-900">Recent Activity</h4>
+              <h4 className="text-base font-bold text-slate-900">Recent Activity</h4>
             </div>
             <div className="p-0">
               {ledger.length === 0 ? (
@@ -342,8 +850,8 @@ export default function CommunicatePage() {
                       <tr key={entry._id} className="hover:bg-slate-50 transition-colors">
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <div className={`p-1.5 rounded-full ${entry.type === 'TOPUP' ? 'bg-green-50 text-green-600' : 'bg-indigo-50 text-indigo-600'}`}>
-                              <span className="material-symbols-outlined text-sm">{entry.type === 'TOPUP' ? 'add_circle' : 'sms'}</span>
+                            <div className={`p-1.5 rounded-lg ${entry.type === 'TOPUP' ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-600'}`}>
+                              <span className="material-symbols-outlined text-sm">{entry.type === 'TOPUP' ? 'add_circle' : 'chat'}</span>
                             </div>
                             <div>
                               <p className="text-xs font-bold text-slate-800">
@@ -356,7 +864,7 @@ export default function CommunicatePage() {
                           </div>
                         </td>
                         <td className="p-4 text-right">
-                          <span className={`text-xs font-black ${entry.type === 'TOPUP' ? 'text-green-600' : 'text-red-500'}`}>
+                          <span className={`text-xs font-black ${entry.type === 'TOPUP' ? 'text-green-600' : 'text-slate-600'}`}>
                             {entry.type === 'TOPUP' ? '+' : '-'}{entry.amount.toFixed(2)}
                           </span>
                         </td>
@@ -368,9 +876,9 @@ export default function CommunicatePage() {
             </div>
             
             {ledgerMeta.pages > 1 && (
-              <div className="flex items-center justify-between px-5 py-3 border-t border-slate-50">
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-50 bg-slate-50/50">
                 <Button variant="secondary" size="sm" disabled={ledgerPage <= 1} onClick={() => loadCredits(ledgerPage - 1)}>Prev</Button>
-                <span className="text-xs text-slate-400 font-medium">{ledgerPage}/{ledgerMeta.pages}</span>
+                <span className="text-xs text-slate-500 font-bold">{ledgerPage} / {ledgerMeta.pages}</span>
                 <Button variant="secondary" size="sm" disabled={ledgerPage >= ledgerMeta.pages} onClick={() => loadCredits(ledgerPage + 1)}>Next</Button>
               </div>
             )}
