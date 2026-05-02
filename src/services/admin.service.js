@@ -11,4 +11,8 @@ export const adminService = {
 
   // Convenience: student count for cost preview
   getStudents: (params) => api.get('/students', { params }),
+
+  // Email config
+  updateEmailConfig: (data) => api.patch('/admin/me/email-config', data),
+  testEmailConfig:   ()     => api.post('/admin/me/email-config/test'),
 };

@@ -11,6 +11,32 @@
   }
 }
 
+/* ── Recharts focus outline reset ─────────────────────────────────────────
+   Recharts puts tabIndex={0} on its wrapper div and on several inner SVG
+   nodes (sectors, bars, dots). Clicking them gives them focus and the
+   browser paints a 2px outline. Suppress it everywhere inside any chart.
+   This sits OUTSIDE @layer so utilities can't override it. */
+.recharts-wrapper,
+.recharts-wrapper *,
+.recharts-surface,
+.recharts-surface * {
+  outline: none !important;
+  outline-offset: 0 !important;
+}
+
+.recharts-wrapper:focus,
+.recharts-wrapper:focus-visible,
+.recharts-wrapper *:focus,
+.recharts-wrapper *:focus-visible,
+.recharts-surface:focus,
+.recharts-surface:focus-visible,
+.recharts-surface *:focus,
+.recharts-surface *:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
 @layer utilities {
   .glass-header {
     @apply backdrop-blur-md bg-white/70 border-b border-white/20 shadow-sm;

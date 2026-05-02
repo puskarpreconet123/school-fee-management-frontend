@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, History, LogOut, Menu, X, GraduationCap, Bell
@@ -47,10 +47,98 @@ function NavItem({ to, label, Icon, collapsed }) {
   );
 }
 
+function SidebarContent({
+  forceExpand = false,
+  onClose,
+  isCollapsed,
+  user,
+  onLogout,
+  onToggleCollapse,
+  onHoverEnter,
+  onHoverLeave,
+}) {
+  return (
+    <aside
+      onMouseLeave={() => !forceExpand && onHoverLeave()}
+      className={classNames(
+        'flex flex-col glass-sidebar h-full transition-[width] duration-500 ease-out will-change-[width]',
+        isCollapsed ? 'w-16' : 'w-60'
+      )}
+    >
+      {/* Sidebar Header */}
+      <div
+        onMouseEnter={() => !forceExpand && onHoverLeave()}
+        className="flex items-center h-16 shrink-0 border-b border-gray-100 px-3 gap-3"
+      >
+        {/* Hamburger: toggles desktop collapse OR closes mobile overlay */}
+        <button
+          onClick={() => onClose ? onClose() : onToggleCollapse()}
+          className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-50 hover:text-gray-700 transition-colors shrink-0"
+        >
+          {onClose ? <X size={18} /> : <Menu size={18} />}
+        </button>
+
+        {/* Logo — only visible when expanded */}
+        {!isCollapsed && (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center w-7 h-7 bg-brand-600 rounded-lg shrink-0">
+              <GraduationCap size={14} className="text-white" />
+            </div>
+            <span className="font-bold text-gray-900 text-base tracking-tight">FeeSync</span>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation & User Area (hover expands desktop sidebar) */}
+      <div
+        className="flex-1 flex flex-col min-h-0"
+        onMouseEnter={() => !forceExpand && onHoverEnter()}
+      >
+        {/* Navigation */}
+        <nav className={classNames(
+          'flex-1 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden',
+          isCollapsed ? 'px-2' : 'px-3'
+        )}>
+          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+            <NavItem key={to} to={to} label={label} Icon={Icon} collapsed={isCollapsed} />
+          ))}
+        </nav>
+
+        {/* User + Logout */}
+        <div className={classNames('px-3 py-4 border-t border-gray-100 space-y-1', isCollapsed && 'px-2')}>
+          {!isCollapsed && (
+            <div className="flex items-center gap-3 px-3 py-2.5 mb-1">
+              <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                <span className="text-xs font-semibold text-brand-700">{getInitials(user?.name || 'S')}</span>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{user?.name || 'Student'}</p>
+                <p className="text-xs text-gray-500 truncate">{user?.class ? `Class ${user.class}` : 'Student'}</p>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={onLogout}
+            className={classNames(
+              'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium',
+              'text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors',
+              isCollapsed && 'justify-center'
+            )}
+          >
+            <LogOut size={17} className="shrink-0" />
+            {!isCollapsed && <span>Logout</span>}
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 export default function StudentLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const hoverTimeoutRef = useRef(null);
 
   const effectivelyCollapsed = collapsed && !isHovered;
   const { user, logout } = useAuthStore();
@@ -62,99 +150,37 @@ export default function StudentLayout() {
     navigate('/student');
   };
 
+  const handleHoverEnter = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => setIsHovered(true), 150);
+  };
+
+  const handleHoverLeave = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    setIsHovered(false);
+  };
+
+  const toggleCollapse = () => setCollapsed((c) => !c);
+
   // Find active index for sliding indicator
   // indices: 0: dashboard, 1: notices, 2: history, 3: logout placeholder
   const activeIndex = NAV_ITEMS.findIndex(item => item.to === location.pathname);
-  const indicatorStyle = activeIndex !== -1 
+  const indicatorStyle = activeIndex !== -1
     ? { transform: `translateX(${activeIndex * 100}%)` }
     : { opacity: 0 };
-
-  // forceExpand=true on mobile so the overlay is always fully expanded
-  function SidebarContent({ forceExpand = false, onClose }) {
-    const isCollapsed = forceExpand ? false : effectivelyCollapsed;
-
-    return (
-      <aside
-        onMouseLeave={() => !forceExpand && setIsHovered(false)}
-        className={classNames(
-          'flex flex-col glass-sidebar h-full transition-all duration-300 ease-in-out',
-          isCollapsed ? 'w-16' : 'w-60'
-        )}
-      >
-        {/* Sidebar Header */}
-        <div
-          onMouseEnter={() => !forceExpand && setIsHovered(false)}
-          className="flex items-center h-16 shrink-0 border-b border-gray-100 px-3 gap-3"
-        >
-          {/* Hamburger: toggles desktop collapse OR closes mobile overlay */}
-          <button
-            onClick={() => onClose ? onClose() : setCollapsed((c) => !c)}
-            className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-50 hover:text-gray-700 transition-colors shrink-0"
-          >
-            {onClose ? <X size={18} /> : <Menu size={18} />}
-          </button>
-
-          {/* Logo — only visible when expanded */}
-          {!isCollapsed && (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-7 h-7 bg-brand-600 rounded-lg shrink-0">
-                <GraduationCap size={14} className="text-white" />
-              </div>
-              <span className="font-bold text-gray-900 text-base tracking-tight">FeeSync</span>
-            </div>
-          )}
-        </div>
-
-        {/* Navigation & User Area (hover expands desktop sidebar) */}
-        <div
-          className="flex-1 flex flex-col min-h-0"
-          onMouseEnter={() => !forceExpand && setIsHovered(true)}
-        >
-          {/* Navigation */}
-          <nav className={classNames(
-            'flex-1 py-4 space-y-0.5 overflow-y-auto overflow-x-hidden',
-            isCollapsed ? 'px-2' : 'px-3'
-          )}>
-            {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-              <NavItem key={to} to={to} label={label} Icon={Icon} collapsed={isCollapsed} />
-            ))}
-          </nav>
-
-          {/* User + Logout */}
-          <div className={classNames('px-3 py-4 border-t border-gray-100 space-y-1', isCollapsed && 'px-2')}>
-            {!isCollapsed && (
-              <div className="flex items-center gap-3 px-3 py-2.5 mb-1">
-                <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
-                  <span className="text-xs font-semibold text-brand-700">{getInitials(user?.name || 'S')}</span>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{user?.name || 'Student'}</p>
-                  <p className="text-xs text-gray-500 truncate">{user?.class ? `Class ${user.class}` : 'Student'}</p>
-                </div>
-              </div>
-            )}
-            <button
-              onClick={handleLogout}
-              className={classNames(
-                'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium',
-                'text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors',
-                isCollapsed && 'justify-center'
-              )}
-            >
-              <LogOut size={17} className="shrink-0" />
-              {!isCollapsed && <span>Logout</span>}
-            </button>
-          </div>
-        </div>
-      </aside>
-    );
-  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Desktop sidebar - hidden on mobile */}
       <div className="hidden lg:flex flex-col h-full">
-        <SidebarContent />
+        <SidebarContent
+          isCollapsed={effectivelyCollapsed}
+          user={user}
+          onLogout={handleLogout}
+          onToggleCollapse={toggleCollapse}
+          onHoverEnter={handleHoverEnter}
+          onHoverLeave={handleHoverLeave}
+        />
       </div>
 
       {/* Main content */}

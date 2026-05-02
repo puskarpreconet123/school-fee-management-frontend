@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { toast } from '../store/useToastStore';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
@@ -18,6 +19,33 @@ api.interceptors.request.use(
   (err) => Promise.reject(err)
 );
 
+// Guard so parallel 401s only fire one toast / redirect
+let sessionExpiredHandled = false;
+
+function handleSessionExpired() {
+  if (sessionExpiredHandled) return;
+  sessionExpiredHandled = true;
+
+  const role = localStorage.getItem('role');
+
+  // Clear plain keys AND the Zustand persist key — otherwise the store
+  // rehydrates with a stale token and RequireAdmin loops back into the dashboard.
+  localStorage.removeItem('token');
+  localStorage.removeItem('role');
+  localStorage.removeItem('auth-storage');
+
+  toast.error('Session expired. Please log in again.', 2500);
+
+  const loginPath =
+    role === 'superadmin' ? '/superadmin'
+    : role === 'student' ? '/student'
+    : '/';
+
+  setTimeout(() => {
+    window.location.href = loginPath;
+  }, 1200);
+}
+
 // ── Response interceptor: normalise errors ───────────────────────────────────
 api.interceptors.response.use(
   (res) => res.data,
@@ -28,14 +56,11 @@ api.interceptors.response.use(
       err.message ||
       'Something went wrong';
 
-    // Auto-logout on 401
+    // Auto-logout on 401 (expired / missing / invalid credentials)
     if (status === 401) {
-      const isLoginRequest = err.config.url.includes('/login');
+      const isLoginRequest = err.config?.url?.includes('/login');
       if (!isLoginRequest) {
-        const role = localStorage.getItem('role');
-        localStorage.removeItem('token');
-        localStorage.removeItem('role');
-        window.location.href = role === 'superadmin' ? '/superadmin' : '/';
+        handleSessionExpired();
       }
     }
 

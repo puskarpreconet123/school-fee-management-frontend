@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Coins, Plus, Search, ChevronDown, ChevronUp, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Coins, Plus, Search, ChevronDown, ChevronUp, ArrowUpCircle, ArrowDownCircle, MessageSquare, Phone } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
@@ -12,6 +12,20 @@ import { superadminService } from '../../services/superadmin.service';
 import { formatDate, getInitials } from '../../utils/formatters';
 import { toast } from '../../store/useToastStore';
 
+const CHANNEL_META = [
+  { key: 'sms',      label: 'SMS',      icon: MessageSquare, accent: 'text-blue-600',   bg: 'bg-blue-50' },
+  { key: 'whatsapp', label: 'WhatsApp', icon: MessageSquare, accent: 'text-green-600',  bg: 'bg-green-50' },
+  { key: 'call',     label: 'Call',     icon: Phone,         accent: 'text-orange-600', bg: 'bg-orange-50' },
+];
+
+const CHANNEL_RATES = { sms: 0.20, whatsapp: 0.50, call: 1.00 };
+
+function balanceColor(value) {
+  if (value <= 0) return 'text-red-600';
+  if (value < 5) return 'text-yellow-600';
+  return 'text-green-600';
+}
+
 export default function CreditsPage() {
   const [schools, setSchools] = useState([]);
   const [meta, setMeta] = useState({});
@@ -22,7 +36,7 @@ export default function CreditsPage() {
   // Topup modal
   const [topupOpen, setTopupOpen] = useState(false);
   const [topupTarget, setTopupTarget] = useState(null);
-  const [topupForm, setTopupForm] = useState({ amount: '', description: '' });
+  const [topupForm, setTopupForm] = useState({ channel: 'sms', amount: '', description: '' });
   const [topupSaving, setTopupSaving] = useState(false);
 
   // Ledger drawer
@@ -49,23 +63,25 @@ export default function CreditsPage() {
 
   useEffect(() => { load(1, search); }, [search]);
 
-  const openTopup = (school) => {
+  const openTopup = (school, presetChannel = 'sms') => {
     setTopupTarget(school);
-    setTopupForm({ amount: '', description: '' });
+    setTopupForm({ channel: presetChannel, amount: '', description: '' });
     setTopupOpen(true);
   };
 
   const handleTopup = async () => {
     const amount = parseFloat(topupForm.amount);
     if (!amount || amount <= 0) { toast.error('Enter a valid amount'); return; }
+    if (!topupForm.channel) { toast.error('Select a channel'); return; }
     setTopupSaving(true);
     try {
       await superadminService.topupCredits({
         schoolId: topupTarget._id,
+        channel: topupForm.channel,
         amount,
         description: topupForm.description,
       });
-      toast.success(`${amount} credits added to ${topupTarget.name}`);
+      toast.success(`${amount} ${topupForm.channel.toUpperCase()} credits added to ${topupTarget.name}`);
       setTopupOpen(false);
       load(page, search);
       if (ledgerSchool?._id === topupTarget._id) loadLedger(topupTarget, 1);
@@ -105,7 +121,10 @@ export default function CreditsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">Credits</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage communication credits for schools. Each SMS / WhatsApp / call costs 0.12 credits per student.</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Each service has its own credit balance.
+            SMS {CHANNEL_RATES.sms.toFixed(2)} / WhatsApp {CHANNEL_RATES.whatsapp.toFixed(2)} / Call {CHANNEL_RATES.call.toFixed(2)} credits per recipient. Email is free.
+          </p>
         </div>
       </div>
 
@@ -129,11 +148,15 @@ export default function CreditsPage() {
             <Thead>
               <Th>School</Th>
               <Th>Status</Th>
-              <Th>Credit Balance</Th>
+              <Th>SMS</Th>
+              <Th>WhatsApp</Th>
+              <Th>Call</Th>
               <Th />
             </Thead>
             <Tbody>
-              {schools.map((s) => (
+              {schools.map((s) => {
+                const balances = s.creditBalances || { sms: 0, whatsapp: 0, call: 0 };
+                return (
                 <React.Fragment key={s._id}>
                   <Tr>
                     <Td>
@@ -150,14 +173,20 @@ export default function CreditsPage() {
                     <Td>
                       <Badge label={s.isActive ? 'Active' : 'Inactive'} variant={s.isActive ? 'ACTIVE' : 'INACTIVE'} />
                     </Td>
-                    <Td>
-                      <span className={[
-                        'font-semibold text-sm',
-                        s.creditBalance <= 0 ? 'text-red-600' : s.creditBalance < 5 ? 'text-yellow-600' : 'text-green-600',
-                      ].join(' ')}>
-                        {s.creditBalance.toFixed(2)}
-                      </span>
-                    </Td>
+                    {CHANNEL_META.map(({ key }) => (
+                      <Td key={key}>
+                        <button
+                          onClick={() => openTopup(s, key)}
+                          className={[
+                            'font-semibold text-sm hover:underline cursor-pointer',
+                            balanceColor(balances[key] ?? 0),
+                          ].join(' ')}
+                          title={`Top up ${key.toUpperCase()} credits`}
+                        >
+                          {(balances[key] ?? 0).toFixed(2)}
+                        </button>
+                      </Td>
+                    ))}
                     <Td>
                       <div className="flex items-center gap-1 justify-end">
                         <Button size="sm" onClick={() => openTopup(s)}>
@@ -223,7 +252,8 @@ export default function CreditsPage() {
                     </Tr>
                   )}
                 </React.Fragment>
-              ))}
+                );
+              })}
             </Tbody>
           </Table>
 
@@ -251,10 +281,39 @@ export default function CreditsPage() {
         }
       >
         <div className="space-y-4">
-          <div className="flex items-center justify-between bg-violet-50 rounded-xl px-4 py-3">
-            <span className="text-sm text-violet-700 font-medium">Current Balance</span>
-            <span className="text-lg font-bold text-violet-700">{topupTarget?.creditBalance?.toFixed(2) ?? '—'}</span>
+          {/* Channel picker */}
+          <div>
+            <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Service</p>
+            <div className="grid grid-cols-3 gap-2">
+              {CHANNEL_META.map(({ key, label, icon: Icon, accent, bg }) => {
+                const selected = topupForm.channel === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTopupForm((f) => ({ ...f, channel: key }))}
+                    className={[
+                      'flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all',
+                      selected ? `${bg} ${accent} border-current` : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300',
+                    ].join(' ')}
+                  >
+                    <Icon size={16} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+
+          <div className="flex items-center justify-between bg-violet-50 rounded-xl px-4 py-3">
+            <span className="text-sm text-violet-700 font-medium">
+              Current {topupForm.channel?.toUpperCase()} Balance
+            </span>
+            <span className="text-lg font-bold text-violet-700">
+              {(topupTarget?.creditBalances?.[topupForm.channel] ?? 0).toFixed(2)}
+            </span>
+          </div>
+
           <Input
             label="Credits to Add"
             type="number"
@@ -271,12 +330,17 @@ export default function CreditsPage() {
             value={topupForm.description}
             onChange={(e) => setTopupForm((f) => ({ ...f, description: e.target.value }))}
           />
-          {topupForm.amount > 0 && (
-            <p className="text-xs text-gray-500">
-              New balance will be <strong>{((topupTarget?.creditBalance || 0) + parseFloat(topupForm.amount || 0)).toFixed(2)}</strong> credits
-              &nbsp;(≈ <strong>{Math.floor(((topupTarget?.creditBalance || 0) + parseFloat(topupForm.amount || 0)) / 0.12)}</strong> messages).
-            </p>
-          )}
+          {topupForm.amount > 0 && (() => {
+            const current = topupTarget?.creditBalances?.[topupForm.channel] ?? 0;
+            const newBal = current + parseFloat(topupForm.amount || 0);
+            const rate = CHANNEL_RATES[topupForm.channel] || 0.20;
+            return (
+              <p className="text-xs text-gray-500">
+                New {topupForm.channel?.toUpperCase()} balance will be <strong>{newBal.toFixed(2)}</strong> credits
+                &nbsp;(≈ <strong>{Math.floor(newBal / rate)}</strong> messages at {rate.toFixed(2)} per recipient).
+              </p>
+            );
+          })()}
         </div>
       </Modal>
     </div>

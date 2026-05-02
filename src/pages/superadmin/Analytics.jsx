@@ -103,7 +103,17 @@ export default function SuperAdminAnalytics() {
                 <Tooltip 
                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                  />
-                <Area type="stepAfter" dataKey="schools" stroke="#3b82f6" strokeWidth={3} fill="url(#growthGradient)" />
+                <Area
+                  type="monotone"
+                  dataKey="schools"
+                  stroke="#3b82f6"
+                  strokeWidth={3}
+                  fill="url(#growthGradient)"
+                  isAnimationActive
+                  animationBegin={150}
+                  animationDuration={1400}
+                  animationEasing="ease-out"
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -130,7 +140,7 @@ export default function SuperAdminAnalytics() {
                     dataKey="value"
                   >
                     <Cell fill="#8b5cf6" />
-                    <Cell fill="#f1f5f9" />
+                    <Cell fill="#22c55e" />
                   </Pie>
                   <Tooltip 
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
@@ -142,7 +152,7 @@ export default function SuperAdminAnalytics() {
              {statusData.map((item, idx) => (
                <div key={item.name} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
-                     <div className={`w-3 h-3 rounded-full ${idx === 0 ? 'bg-violet-600' : 'bg-gray-200'}`} />
+                     <div className={`w-3 h-3 rounded-full ${idx === 0 ? 'bg-violet-600' : 'bg-green-500'}`} />
                      <span className="text-gray-500 font-medium">{item.name} Schools</span>
                   </div>
                   <span className="font-bold text-gray-900">{item.value}</span>
@@ -175,8 +185,27 @@ export default function SuperAdminAnalytics() {
                  <Tooltip 
                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                  />
-                 <Bar dataKey="total" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
-                 <Line type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} dot={false} />
+                 <Bar
+                   dataKey="total"
+                   fill="#10b981"
+                   radius={[4, 4, 0, 0]}
+                   barSize={20}
+                   isAnimationActive
+                   animationBegin={200}
+                   animationDuration={1100}
+                   animationEasing="ease-out"
+                 />
+                 <Line
+                   type="monotone"
+                   dataKey="count"
+                   stroke="#6366f1"
+                   strokeWidth={2}
+                   dot={false}
+                   isAnimationActive
+                   animationBegin={900}
+                   animationDuration={1200}
+                   animationEasing="ease-out"
+                 />
                </ComposedChart>
             </ResponsiveContainer>
           </div>
