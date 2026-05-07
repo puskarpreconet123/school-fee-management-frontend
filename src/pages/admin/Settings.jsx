@@ -3,7 +3,6 @@ import { Settings2, CheckCircle, AlertTriangle, Eye, EyeOff, Save, Bell, Plus, T
 import Card, { CardHeader } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
-import Select from '../../components/ui/Select';
 import Badge from '../../components/ui/Badge';
 import { PageLoader } from '../../components/ui/Loader';
 import { authService } from '../../services/auth.service';
@@ -14,7 +13,7 @@ import { classNames } from '../../utils/formatters';
 
 const DEFAULT_PROVIDERS = {
   razorpay: { type: 'razorpay', isActive: false, config: { keyId: '', keySecret: '', webhookSecret: '' } },
-  phonepe:  { type: 'phonepe',  isActive: false, config: { merchantId: '', saltKey: '', saltIndex: '1' } },
+  phonepe: { type: 'phonepe', isActive: false, config: { merchantId: '', saltKey: '', saltIndex: '1' } },
 };
 
 function mask(val) {
@@ -48,15 +47,15 @@ function ProviderCard({ name, label, description, provider, onChange, showSecret
 
   const fields = name === 'razorpay'
     ? [
-        { key: 'keyId',         label: 'Key ID',         secret: false, placeholder: 'rzp_live_...' },
-        { key: 'keySecret',     label: 'Key Secret',     secret: true,  placeholder: '••••••••' },
-        { key: 'webhookSecret', label: 'Webhook Secret', secret: true,  placeholder: '••••••••' },
-      ]
+      { key: 'keyId', label: 'Key ID', secret: false, placeholder: 'rzp_live_...' },
+      { key: 'keySecret', label: 'Key Secret', secret: true, placeholder: '••••••••' },
+      { key: 'webhookSecret', label: 'Webhook Secret', secret: true, placeholder: '••••••••' },
+    ]
     : [
-        { key: 'merchantId', label: 'Merchant ID', secret: false, placeholder: 'PGTESTPAYUAT...' },
-        { key: 'saltKey',    label: 'Salt Key',    secret: true,  placeholder: '••••••••' },
-        { key: 'saltIndex',  label: 'Salt Index',  secret: false, placeholder: '1', type: 'number', min: '1', max: '4' },
-      ];
+      { key: 'merchantId', label: 'Merchant ID', secret: false, placeholder: 'PGTESTPAYUAT...' },
+      { key: 'saltKey', label: 'Salt Key', secret: true, placeholder: '••••••••' },
+      { key: 'saltIndex', label: 'Salt Index', secret: false, placeholder: '1', type: 'number', min: '1', max: '4' },
+    ];
 
   return (
     <div className={classNames('border rounded-xl p-5 transition-all duration-200', active ? 'border-brand-200 bg-white shadow-sm' : 'border-gray-100 bg-gray-50/60')}>
@@ -184,12 +183,18 @@ export default function SettingsPage() {
 
   const DEFAULT_EMAIL_CONFIG = { host: '', port: 587, secure: false, user: '', pass: '', from: '', useCustom: false };
   const [emailConfig, setEmailConfig] = useState(DEFAULT_EMAIL_CONFIG);
-  const [savingEmail, setSavingEmail] = useState(false);
+  const [savingComm, setSavingComm] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);
   const [showEmailPass, setShowEmailPass] = useState(false);
   const [editingEmail, setEditingEmail] = useState(false);
 
-  useEffect(() => {
+  const DEFAULT_WHATSAPP_CONFIG = { apiUrl: '', channelId: '', apiKey: '', wabaId: '', apiVersion: '', useCustom: false };
+  const [whatsappConfig, setWhatsappConfig] = useState(DEFAULT_WHATSAPP_CONFIG);
+
+  const [showWhatsappKey, setShowWhatsappKey] = useState(false);
+  const [editingWhatsapp, setEditingWhatsapp] = useState(false);
+  const loadProfile = () => {
+    setLoading(true);
     authService.adminProfile()
       .then((res) => {
         const raw = res.data?.paymentProviders || [];
@@ -198,11 +203,39 @@ export default function SettingsPage() {
         setProviders(map);
 
         if (res.data?.emailConfig) {
-          setEmailConfig({ ...DEFAULT_EMAIL_CONFIG, ...res.data.emailConfig });
+          const cfg = res.data.emailConfig;
+          const defaults = res.data.emailDefaults || {};
+          setEmailConfig({
+            ...DEFAULT_EMAIL_CONFIG,
+            ...cfg,
+            host: cfg.host || defaults.host || '',
+            port: cfg.port || defaults.port || 587,
+            secure: cfg.secure ?? defaults.secure ?? false,
+            user: cfg.user || defaults.user || '',
+            pass: cfg.pass || defaults.pass || '',
+            from: cfg.from || defaults.from || '',
+          });
+        }
+        if (res.data?.whatsappConfig) {
+          const cfg = res.data.whatsappConfig;
+          const defaults = res.data.whatsappDefaults || {};
+          setWhatsappConfig({
+            ...DEFAULT_WHATSAPP_CONFIG,
+            ...cfg,
+            apiUrl: cfg.apiUrl || defaults.apiUrl || '',
+            channelId: cfg.channelId || defaults.channelId || '',
+            apiKey: cfg.apiKey || defaults.apiKey || '',
+            wabaId: cfg.wabaId || defaults.wabaId || '',
+            apiVersion: cfg.apiVersion || defaults.apiVersion || '',
+          });
         }
       })
       .catch(() => toast.error('Failed to load settings'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadProfile();
   }, []);
 
   const handleSave = async () => {
@@ -222,25 +255,34 @@ export default function SettingsPage() {
     }
   };
 
-
-
-  const handleSaveEmailConfig = async () => {
+  const handleSaveCommunicationConfig = async () => {
     if (emailConfig.useCustom) {
       if (!emailConfig.host || !emailConfig.user || !emailConfig.pass) {
         toast.error('Host, username, and password are required for custom SMTP');
         return;
       }
     }
-    setSavingEmail(true);
+    if (whatsappConfig.useCustom) {
+      if (!whatsappConfig.apiUrl || !whatsappConfig.channelId || !whatsappConfig.apiKey || !whatsappConfig.wabaId || !whatsappConfig.apiVersion) {
+        toast.error('API URL, Channel ID, API Key, WABA ID, and API Version are required for WhatsApp integration');
+        return;
+      }
+    }
+
+    setSavingComm(true);
     try {
-      await adminService.updateEmailConfig({ emailConfig });
-      toast.success('Email settings saved');
+      await Promise.all([
+        adminService.updateEmailConfig({ emailConfig }),
+        adminService.updateWhatsappConfig({ whatsappConfig })
+      ]);
+      toast.success('Communication settings saved');
     } catch (err) {
-      toast.error(err.message || 'Failed to save email settings');
+      toast.error(err.message || 'Failed to save communication settings');
     } finally {
-      setSavingEmail(false);
+      setSavingComm(false);
     }
   };
+
 
   const handleTestEmail = async () => {
     setTestingEmail(true);
@@ -278,24 +320,24 @@ export default function SettingsPage() {
         )}
 
         <div className="space-y-4">
-        <ProviderCard
-          name="razorpay"
-          label="Razorpay"
-          description="Accept UPI, cards, net banking & wallets"
-          provider={providers.razorpay}
-          onChange={(v) => setProviders((p) => ({ ...p, razorpay: v }))}
-          showSecrets={showSecrets}
-          onToggleSecrets={() => setShowSecrets((s) => !s)}
-        />
-        <ProviderCard
-          name="phonepe"
-          label="PhonePe"
-          description="Accept payments via PhonePe & UPI"
-          provider={providers.phonepe}
-          onChange={(v) => setProviders((p) => ({ ...p, phonepe: v }))}
-          showSecrets={showSecrets}
-          onToggleSecrets={() => setShowSecrets((s) => !s)}
-        />
+          <ProviderCard
+            name="razorpay"
+            label="Razorpay"
+            description="Accept UPI, cards, net banking & wallets"
+            provider={providers.razorpay}
+            onChange={(v) => setProviders((p) => ({ ...p, razorpay: v }))}
+            showSecrets={showSecrets}
+            onToggleSecrets={() => setShowSecrets((s) => !s)}
+          />
+          <ProviderCard
+            name="phonepe"
+            label="PhonePe"
+            description="Accept payments via PhonePe & UPI"
+            provider={providers.phonepe}
+            onChange={(v) => setProviders((p) => ({ ...p, phonepe: v }))}
+            showSecrets={showSecrets}
+            onToggleSecrets={() => setShowSecrets((s) => !s)}
+          />
         </div>
 
         <div className="mt-6 flex justify-end">
@@ -309,172 +351,328 @@ export default function SettingsPage() {
       <Card>
         <CardHeader title="Communication Mediums" subtitle="Configure custom email and other communication channels" />
 
-        <div className={classNames('border rounded-xl p-5 transition-all duration-200', emailConfig.useCustom ? 'border-brand-200 bg-white shadow-sm' : 'border-gray-100 bg-gray-50/60')}>
-          {/* Toggle */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={classNames(
-                'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-                emailConfig.useCustom ? 'bg-brand-600 text-white' : 'bg-gray-200 text-gray-400'
-              )}>
-                <Mail size={20} />
+        <div className="space-y-4">
+          {/* Custom SMTP */}
+          <div className={classNames('border rounded-xl p-5 transition-all duration-200', emailConfig.useCustom ? 'border-brand-200 bg-white shadow-sm' : 'border-gray-100 bg-gray-50/60')}>
+            {/* Toggle */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={classNames(
+                  'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+                  emailConfig.useCustom ? 'bg-brand-600 text-white' : 'bg-gray-200 text-gray-400'
+                )}>
+                  <Mail size={20} />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">Custom SMTP</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {emailConfig.useCustom
+                      ? 'Emails send from your configured SMTP server.'
+                      : "Emails send from FeeSync's platform mail."}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-semibold text-gray-900">Custom SMTP</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {emailConfig.useCustom
-                    ? 'Emails send from your configured SMTP server.'
-                    : "Emails send from FeeSync's platform mail."}
-                </p>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {emailConfig.useCustom && !editingEmail && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingEmail(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 transition-colors"
+                  >
+                    <Pencil size={12} /> Edit
+                  </button>
+                )}
+                <Badge label={emailConfig.useCustom ? 'ACTIVE' : 'INACTIVE'} variant={emailConfig.useCustom ? 'ACTIVE' : 'INACTIVE'} />
+                <button
+                  onClick={() => {
+                    const active = !emailConfig.useCustom;
+                    const configured = !!(emailConfig.host || emailConfig.user);
+                    setEmailConfig((c) => ({ ...c, useCustom: active }));
+                    if (active && !configured) setEditingEmail(true);
+                  }}
+                  className={classNames(
+                    'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
+                    'transition-colors duration-200 ease-in-out focus:outline-none',
+                    emailConfig.useCustom ? 'bg-brand-600' : 'bg-gray-200'
+                  )}
+                >
+                  <span className={classNames(
+                    'inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                    emailConfig.useCustom ? 'translate-x-5' : 'translate-x-0'
+                  )} />
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              {emailConfig.useCustom && !editingEmail && (
-                <button
-                  type="button"
-                  onClick={() => setEditingEmail(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 transition-colors"
-                >
-                  <Pencil size={12} /> Edit
-                </button>
-              )}
-              <Badge label={emailConfig.useCustom ? 'ACTIVE' : 'INACTIVE'} variant={emailConfig.useCustom ? 'ACTIVE' : 'INACTIVE'} />
-              <button
-                onClick={() => {
-                  const active = !emailConfig.useCustom;
-                  const configured = !!(emailConfig.host || emailConfig.user);
-                  setEmailConfig((c) => ({ ...c, useCustom: active }));
-                  if (active && !configured) setEditingEmail(true);
-                }}
-                className={classNames(
-                  'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
-                  'transition-colors duration-200 ease-in-out focus:outline-none',
-                  emailConfig.useCustom ? 'bg-brand-600' : 'bg-gray-200'
+            {/* Collapsed view */}
+            {emailConfig.useCustom && !editingEmail && !!(emailConfig.host || emailConfig.user) && (
+              <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 gap-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 text-xs font-medium w-32 shrink-0">SMTP Host</span>
+                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right">{emailConfig.host || '—'}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 text-xs font-medium w-32 shrink-0">Email / User</span>
+                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right">{emailConfig.user || '—'}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Form */}
+            {emailConfig.useCustom && editingEmail && (
+              <div className="mt-5 pt-5 border-t border-gray-100 space-y-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Credentials</p>
+                  {!!(emailConfig.host || emailConfig.user) && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingEmail(false)}
+                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <XIcon size={12} /> Cancel
+                    </button>
+                  )}
+                </div>
+
+                <Input
+                  label="SMTP Host"
+                  placeholder="smtp.gmail.com"
+                  value={emailConfig.host}
+                  onChange={(e) => setEmailConfig((c) => ({ ...c, host: e.target.value }))}
+                />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Port"
+                    type="number"
+                    placeholder="587"
+                    value={emailConfig.port}
+                    onChange={(e) => setEmailConfig((c) => ({ ...c, port: Number(e.target.value) }))}
+                  />
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-medium text-gray-700">Secure (TLS / port 465)</label>
+                    <button
+                      type="button"
+                      onClick={() => setEmailConfig((c) => ({ ...c, secure: !c.secure }))}
+                      className={classNames(
+                        'mt-1 relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
+                        'transition-colors duration-200 ease-in-out focus:outline-none',
+                        emailConfig.secure ? 'bg-brand-600' : 'bg-gray-200'
+                      )}
+                    >
+                      <span className={classNames(
+                        'inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                        emailConfig.secure ? 'translate-x-5' : 'translate-x-0'
+                      )} />
+                    </button>
+                    <span className="text-xs text-gray-400">{emailConfig.secure ? 'On (port 465)' : 'Off (port 587)'}</span>
+                  </div>
+                </div>
+
+                <Input
+                  label="Username / Email"
+                  type="email"
+                  placeholder="you@yourdomain.com"
+                  value={emailConfig.user}
+                  onChange={(e) => setEmailConfig((c) => ({ ...c, user: e.target.value }))}
+                />
+
+                <div className="relative">
+                  <Input
+                    label="Password / App Password"
+                    type={showEmailPass ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={emailConfig.pass}
+                    onChange={(e) => setEmailConfig((c) => ({ ...c, pass: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailPass((s) => !s)}
+                    className="absolute right-3 top-8 text-gray-400 hover:text-gray-600"
+                  >
+                    {showEmailPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+
+                <Input
+                  label="From Address (optional)"
+                  placeholder="School Name <noreply@yourdomain.com>"
+                  value={emailConfig.from}
+                  onChange={(e) => setEmailConfig((c) => ({ ...c, from: e.target.value }))}
+                />
+
+                <p className="text-xs text-gray-400">
+                  For Gmail, enable 2-Step Verification and generate an App Password at myaccount.google.com/apppasswords.
+                </p>
+
+                {!!(emailConfig.host || emailConfig.user) && (
+                  <div className="flex items-center justify-between mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setEditingEmail(false)}
+                      className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 transition-colors"
+                    >
+                      <CheckCircle size={14} /> Done editing
+                    </button>
+                  </div>
                 )}
-              >
-                <span className={classNames(
-                  'inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  emailConfig.useCustom ? 'translate-x-5' : 'translate-x-0'
-                )} />
-              </button>
-            </div>
+              </div>
+            )}
           </div>
 
-          {/* Collapsed view */}
-          {emailConfig.useCustom && !editingEmail && !!(emailConfig.host || emailConfig.user) && (
-            <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 gap-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500 text-xs font-medium w-32 shrink-0">SMTP Host</span>
-                <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right">{emailConfig.host || '—'}</span>
+          {/* WhatsApp Configuration */}
+          <div className={classNames('border rounded-xl p-5 transition-all duration-200', whatsappConfig.useCustom ? 'border-brand-200 bg-white shadow-sm' : 'border-gray-100 bg-gray-50/60')}>
+            {/* Toggle */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={classNames(
+                  'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+                  whatsappConfig.useCustom ? 'bg-brand-600 text-white' : 'bg-gray-200 text-gray-400'
+                )}>
+                  <RefreshCw size={20} />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">Brandmo.ai Integration</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {whatsappConfig.useCustom
+                      ? 'WhatsApp messages send from your Brandmo.ai account.'
+                      : "WhatsApp messages are currently disabled or using platform defaults."}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-500 text-xs font-medium w-32 shrink-0">Email / User</span>
-                <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right">{emailConfig.user || '—'}</span>
-              </div>
-            </div>
-          )}
 
-          {/* Form */}
-          {emailConfig.useCustom && editingEmail && (
-            <div className="mt-5 pt-5 border-t border-gray-100 space-y-4">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Credentials</p>
-                {!!(emailConfig.host || emailConfig.user) && (
+              <div className="flex items-center gap-2 shrink-0">
+                {whatsappConfig.useCustom && !editingWhatsapp && (
                   <button
                     type="button"
-                    onClick={() => setEditingEmail(false)}
-                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                    onClick={() => setEditingWhatsapp(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 transition-colors"
                   >
-                    <XIcon size={12} /> Cancel
+                    <Pencil size={12} /> Edit
                   </button>
                 )}
-              </div>
-
-              <Input
-                label="SMTP Host"
-                placeholder="smtp.gmail.com"
-                value={emailConfig.host}
-                onChange={(e) => setEmailConfig((c) => ({ ...c, host: e.target.value }))}
-              />
-
-              <div className="grid grid-cols-2 gap-3">
-                <Input
-                  label="Port"
-                  type="number"
-                  placeholder="587"
-                  value={emailConfig.port}
-                  onChange={(e) => setEmailConfig((c) => ({ ...c, port: Number(e.target.value) }))}
-                />
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-gray-700">Secure (TLS / port 465)</label>
-                  <button
-                    type="button"
-                    onClick={() => setEmailConfig((c) => ({ ...c, secure: !c.secure }))}
-                    className={classNames(
-                      'mt-1 relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
-                      'transition-colors duration-200 ease-in-out focus:outline-none',
-                      emailConfig.secure ? 'bg-brand-600' : 'bg-gray-200'
-                    )}
-                  >
-                    <span className={classNames(
-                      'inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                      emailConfig.secure ? 'translate-x-5' : 'translate-x-0'
-                    )} />
-                  </button>
-                  <span className="text-xs text-gray-400">{emailConfig.secure ? 'On (port 465)' : 'Off (port 587)'}</span>
-                </div>
-              </div>
-
-              <Input
-                label="Username / Email"
-                type="email"
-                placeholder="you@yourdomain.com"
-                value={emailConfig.user}
-                onChange={(e) => setEmailConfig((c) => ({ ...c, user: e.target.value }))}
-              />
-
-              <div className="relative">
-                <Input
-                  label="Password / App Password"
-                  type={showEmailPass ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  value={emailConfig.pass}
-                  onChange={(e) => setEmailConfig((c) => ({ ...c, pass: e.target.value }))}
-                />
+                <Badge label={whatsappConfig.useCustom ? 'ACTIVE' : 'INACTIVE'} variant={whatsappConfig.useCustom ? 'ACTIVE' : 'INACTIVE'} />
                 <button
-                  type="button"
-                  onClick={() => setShowEmailPass((s) => !s)}
-                  className="absolute right-3 top-8 text-gray-400 hover:text-gray-600"
+                  onClick={() => {
+                    const active = !whatsappConfig.useCustom;
+                    const configured = !!(whatsappConfig.apiUrl || whatsappConfig.channelId);
+                    setWhatsappConfig((c) => ({ ...c, useCustom: active }));
+                    if (active && !configured) setEditingWhatsapp(true);
+                  }}
+                  className={classNames(
+                    'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
+                    'transition-colors duration-200 ease-in-out focus:outline-none',
+                    whatsappConfig.useCustom ? 'bg-brand-600' : 'bg-gray-200'
+                  )}
                 >
-                  {showEmailPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                  <span className={classNames(
+                    'inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                    whatsappConfig.useCustom ? 'translate-x-5' : 'translate-x-0'
+                  )} />
                 </button>
               </div>
-
-              <Input
-                label="From Address (optional)"
-                placeholder="School Name <noreply@yourdomain.com>"
-                value={emailConfig.from}
-                onChange={(e) => setEmailConfig((c) => ({ ...c, from: e.target.value }))}
-              />
-
-              <p className="text-xs text-gray-400">
-                For Gmail, enable 2-Step Verification and generate an App Password at myaccount.google.com/apppasswords.
-              </p>
-
-              {!!(emailConfig.host || emailConfig.user) && (
-                <div className="flex items-center justify-between mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setEditingEmail(false)}
-                    className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 transition-colors"
-                  >
-                    <CheckCircle size={14} /> Done editing
-                  </button>
-                </div>
-              )}
             </div>
-          )}
+
+            {/* Collapsed view */}
+            {whatsappConfig.useCustom && !editingWhatsapp && !!(whatsappConfig.apiUrl || whatsappConfig.channelId) && (
+              <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 text-xs font-medium w-24 shrink-0">API URL</span>
+                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right truncate ml-4">{whatsappConfig.apiUrl || '—'}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 text-xs font-medium w-24 shrink-0">Channel ID</span>
+                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right">{whatsappConfig.channelId || '—'}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 text-xs font-medium w-24 shrink-0">WABA ID</span>
+                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right">{whatsappConfig.wabaId || '—'}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 text-xs font-medium w-24 shrink-0">API Version</span>
+                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right">{whatsappConfig.apiVersion || '—'}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Form */}
+            {whatsappConfig.useCustom && editingWhatsapp && (
+              <div className="mt-5 pt-5 border-t border-gray-100 space-y-4">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Brandmo.ai Credentials</p>
+                  {!!(whatsappConfig.apiUrl || whatsappConfig.channelId) && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingWhatsapp(false)}
+                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <XIcon size={12} /> Cancel
+                    </button>
+                  )}
+                </div>
+
+                <Input
+                  label="API URL"
+                  placeholder="https://api.brandmo.ai/crm/campaign"
+                  value={whatsappConfig.apiUrl}
+                  onChange={(e) => setWhatsappConfig((c) => ({ ...c, apiUrl: e.target.value }))}
+                />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Channel ID"
+                    placeholder="Your Channel ID"
+                    value={whatsappConfig.channelId}
+                    onChange={(e) => setWhatsappConfig((c) => ({ ...c, channelId: e.target.value }))}
+                  />
+                  <Input
+                    label="WABA ID"
+                    placeholder="WhatsApp Business Account ID"
+                    value={whatsappConfig.wabaId}
+                    onChange={(e) => setWhatsappConfig((c) => ({ ...c, wabaId: e.target.value }))}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="API Version"
+                    placeholder="v20.0"
+                    value={whatsappConfig.apiVersion}
+                    onChange={(e) => setWhatsappConfig((c) => ({ ...c, apiVersion: e.target.value }))}
+                  />
+                  <div className="relative">
+                    <Input
+                      label="API Key"
+                      type={showWhatsappKey ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={whatsappConfig.apiKey}
+                      onChange={(e) => setWhatsappConfig((c) => ({ ...c, apiKey: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowWhatsappKey((s) => !s)}
+                      className="absolute right-3 top-8 text-gray-400 hover:text-gray-600"
+                    >
+                      {showWhatsappKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                {!!(whatsappConfig.apiUrl || whatsappConfig.channelId) && (
+                  <div className="flex items-center justify-between mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setEditingWhatsapp(false)}
+                      className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 transition-colors"
+                    >
+                      <CheckCircle size={14} /> Done editing
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
@@ -483,11 +681,12 @@ export default function SettingsPage() {
               <Send size={16} /> Test Connection
             </Button>
           )}
-          <Button loading={savingEmail} onClick={handleSaveEmailConfig}>
+          <Button loading={savingComm} onClick={handleSaveCommunicationConfig}>
             <Save size={16} /> Save Communication Settings
           </Button>
         </div>
       </Card>
+
     </div>
   );
 }

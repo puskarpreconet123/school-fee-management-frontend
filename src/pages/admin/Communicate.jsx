@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MessageSquare, MessageCircle, Phone, Send, Users, Mail, Bell, RefreshCw, Plus, Trash2, Save, CheckCircle, AlertTriangle, XIcon } from 'lucide-react';
+import { MessageSquare, MessageCircle, Phone, Send, Users, Mail, Bell, RefreshCw, Plus, Trash2, Save, CheckCircle, AlertTriangle, X as XIcon, Pencil, Info, Layout, ExternalLink } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card, { CardHeader } from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
@@ -71,7 +71,13 @@ export default function CommunicatePage() {
 
   // General New Message State
   const [mainTab, setMainTab] = useState('text'); // 'text' | 'voice'
-  const [msgType, setMsgType] = useState('normal'); // 'normal' | 'reminder'
+  const [msgType, setMsgType] = useState('normal'); // 'normal' | 'reminder' | 'whatsapp-templates'
+
+  const [whatsappTemplates, setWhatsappTemplates] = useState([]);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [textChannels, setTextChannels] = useState(['sms']);
   const [voiceChannel, setVoiceChannel] = useState(['call']);
 
@@ -156,8 +162,50 @@ export default function CommunicatePage() {
   };
 
   useEffect(() => {
-    Promise.all([loadCredits(1), loadStudentCount(), loadRules(), loadClasses()]).finally(() => setLoading(false));
+    Promise.all([loadCredits(1), loadStudentCount(), loadRules(), loadClasses(), loadWhatsappTemplates()]).finally(() => setLoading(false));
   }, []);
+
+  const loadWhatsappTemplates = async () => {
+    setLoadingTemplates(true);
+    try {
+      const res = await api.get('/admin/me/whatsapp-templates?limit=10&offset=0');
+      setWhatsappTemplates(res.data?.data || []);
+    } catch (err) {
+      console.error('Failed to load WhatsApp templates', err);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const handleSaveTemplate = async (data) => {
+    setSavingTemplate(true);
+    try {
+      if (editingTemplate) {
+        await api.patch(`/admin/me/whatsapp-templates/${editingTemplate._id}`, data);
+        toast.success('Template updated');
+      } else {
+        await api.post('/admin/me/whatsapp-templates', data);
+        toast.success('Template created and synced with Meta');
+      }
+      setShowTemplateModal(false);
+      loadWhatsappTemplates();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to save template');
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this template from our system and Meta?')) return;
+    try {
+      await api.delete(`/admin/me/whatsapp-templates/${id}`);
+      toast.success('Template deleted');
+      loadWhatsappTemplates();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to delete template');
+    }
+  };
 
   // Compute total balance across all paid channels for the simple top banner
   const totalBalance = balances ? (balances.sms + balances.whatsapp + balances.call) : 0;
@@ -413,6 +461,9 @@ export default function CommunicatePage() {
                 </button>
                 <button onClick={() => setMsgType('reminder')} className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${msgType === 'reminder' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                   <Bell size={16} /> Automated Reminders
+                </button>
+                <button onClick={() => setMsgType('whatsapp-templates')} className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${msgType === 'whatsapp-templates' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+                  <MessageCircle size={16} /> WhatsApp Templates
                 </button>
               </div>
 
@@ -760,6 +811,56 @@ export default function CommunicatePage() {
                 </div>
               )}
 
+              {msgType === 'whatsapp-templates' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900">WhatsApp Templates</h3>
+                      <p className="text-sm text-slate-500">Create and manage your official business templates.</p>
+                    </div>
+                    <Button onClick={() => { setEditingTemplate(null); setShowTemplateModal(true); }} size="sm" className="bg-indigo-600 hover:bg-indigo-700">
+                      <Plus size={16} /> Create New Template
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {whatsappTemplates.map((tpl) => (
+                      <div key={tpl._id} className="border border-slate-100 rounded-xl p-4 hover:border-indigo-200 hover:shadow-md transition-all group bg-slate-50/30">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="font-bold text-slate-900 text-sm truncate max-w-[150px]">{tpl.name}</h3>
+                            <div className="flex gap-2 mt-1">
+                              <Badge variant={tpl.status === 'APPROVED' ? 'success' : 'warning'} className="text-[10px]">
+                                {tpl.status}
+                              </Badge>
+                              <span className="text-[10px] text-slate-400 uppercase font-medium">{tpl.category}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => { setEditingTemplate(tpl); setShowTemplateModal(true); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg">
+                              <Pencil size={14} />
+                            </button>
+                            <button onClick={() => handleDeleteTemplate(tpl._id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="scale-[0.85] origin-top-left -mb-10">
+                          <WhatsAppPreview body={tpl.body} header={tpl.header} footer={tpl.footer} />
+                        </div>
+                      </div>
+                    ))}
+                    {(!whatsappTemplates || whatsappTemplates.length === 0) && (
+                      <div className="col-span-full py-12 text-center bg-slate-50/50 rounded-xl border-2 border-dashed border-slate-200">
+                        <MessageCircle size={32} className="mx-auto text-slate-300 mb-2" />
+                        <p className="text-sm text-slate-500 font-medium">No templates found.</p>
+                        <p className="text-xs text-slate-400">Click the button above to create your first template.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </div>
@@ -885,6 +986,203 @@ export default function CommunicatePage() {
           </div>
         </div>
       </div>
+      {showTemplateModal && (
+        <TemplateModal 
+          template={editingTemplate}
+          onClose={() => setShowTemplateModal(false)}
+          onSave={handleSaveTemplate}
+          loading={savingTemplate}
+        />
+      )}
+
     </div>
   );
 }
+
+const WhatsAppPreview = ({ body, header, footer }) => {
+  const sampleData = {
+    '{{1}}': 'Puskar Deb',
+    '{{2}}': '₹1,500',
+    '{{3}}': 'FeeSync High School',
+    '{{4}}': '15th May 2024',
+    '{{5}}': 'feesync.com/pay/abc',
+  };
+
+  const formatText = (text) => {
+    if (!text) return '';
+    let formatted = text;
+    Object.entries(sampleData).forEach(([key, val]) => {
+      formatted = formatted.split(key).join(val);
+    });
+    return formatted.split('\n').map((line, i) => (
+      <span key={i}>
+        {line}
+        <br />
+      </span>
+    ));
+  };
+
+  return (
+    <div className="bg-[#e5ddd5] p-4 rounded-xl w-[280px] mx-auto shadow-inner relative overflow-hidden">
+      <div className="bg-white rounded-lg p-3 shadow-sm relative z-10">
+        {header?.type === 'TEXT' && header.text && (
+          <div className="font-bold text-slate-800 mb-1 text-[12px] break-words">
+            {formatText(header.text)}
+          </div>
+        )}
+        <div className="text-[12px] text-slate-800 leading-relaxed break-words">
+          {formatText(body)}
+        </div>
+        {footer && (
+          <div className="text-[10px] text-slate-400 mt-1 uppercase tracking-wide break-words">
+            {footer}
+          </div>
+        )}
+        <div className="text-[9px] text-slate-400 text-right mt-1">
+          {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
+        </div>
+      </div>
+      <div className="absolute left-2.5 top-4 w-3 h-3 bg-white rotate-45 -translate-x-1/2"></div>
+    </div>
+  );
+};
+
+const TemplateModal = ({ template, onClose, onSave, loading }) => {
+  const [data, setData] = useState(template || {
+    name: '',
+    category: 'MARKETING',
+    language: 'en',
+    header: { type: 'TEXT', text: '' }, // Locked to TEXT
+    body: '',
+    footer: '',
+    buttons: []
+  });
+
+  const variables = [
+    { id: '{{1}}', label: 'Student Name' },
+    { id: '{{2}}', label: 'Amount Due' },
+    { id: '{{3}}', label: 'School Name' },
+    { id: '{{4}}', label: 'Due Date' },
+    { id: '{{5}}', label: 'Payment Link' },
+  ];
+
+  const insertVariable = (variableId) => {
+    const area = document.getElementById('template-body-area');
+    if (!area) {
+      setData(prev => ({ ...prev, body: prev.body + variableId }));
+      return;
+    }
+    const start = area.selectionStart;
+    const end = area.selectionEnd;
+    const text = data.body;
+    setData(prev => ({ 
+      ...prev, 
+      body: text.substring(0, start) + variableId + text.substring(end) 
+    }));
+    setTimeout(() => {
+      area.focus();
+      area.setSelectionRange(start + variableId.length, start + variableId.length);
+    }, 0);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">{template ? 'Edit Template' : 'Create WhatsApp Template'}</h2>
+            <p className="text-sm text-slate-500">Templates must be approved by Meta before use.</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500">
+            <XIcon size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <Input 
+                label="Template Name" 
+                placeholder="e.g. fee_reminder_june" 
+                value={data.name} 
+                onChange={e => setData({...data, name: e.target.value.toLowerCase().replace(/\s/g, '_')})}
+                disabled={!!template}
+              />
+              <Select 
+                label="Category" 
+                value={data.category} 
+                onChange={val => setData({...data, category: val})}
+                options={[
+                  { value: 'MARKETING', label: 'Marketing' },
+                  { value: 'UTILITY', label: 'Utility' },
+                  { value: 'AUTHENTICATION', label: 'Authentication' }
+                ]}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Header Text (Optional)</label>
+              <Input 
+                placeholder="Enter header text..." 
+                value={data.header.text} 
+                onChange={e => setData({...data, header: { ...data.header, text: e.target.value }})}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Body Message</label>
+              <textarea 
+                id="template-body-area"
+                className="w-full h-32 p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none"
+                placeholder="Write your message here..."
+                value={data.body}
+                onChange={e => setData({...data, body: e.target.value})}
+              />
+              <div className="mt-2 flex flex-wrap gap-2">
+                {variables.map(v => (
+                  <button
+                    key={v.id}
+                    onClick={() => insertVariable(v.id)}
+                    className="flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-colors text-[10px] font-bold"
+                  >
+                    <span>{v.id}</span>
+                    <span className="text-slate-400 font-medium">{v.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Input 
+              label="Footer (Optional)" 
+              placeholder="e.g. Reply STOP to opt out" 
+              value={data.footer} 
+              onChange={e => setData({...data, footer: e.target.value})}
+            />
+          </div>
+
+          <div className="bg-slate-50 rounded-2xl p-6 flex flex-col items-center justify-center border border-slate-100">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Real-time Preview</p>
+            <WhatsAppPreview body={data.body} header={data.header} footer={data.footer} />
+            <div className="mt-8 space-y-3 w-full max-w-xs">
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                <Info size={14} className="text-indigo-600" />
+                <span>Variable <b>{1}</b> is replaced by <b>Student Name</b></span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                <Info size={14} className="text-indigo-600" />
+                <span>Templates usually take 24-48h for approval.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button loading={loading} onClick={() => onSave(data)}>
+            {template ? 'Update Template' : 'Create & Sync Template'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};

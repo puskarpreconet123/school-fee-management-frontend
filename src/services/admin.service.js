@@ -15,4 +15,7 @@ export const adminService = {
   // Email config
   updateEmailConfig: (data) => api.patch('/admin/me/email-config', data),
   testEmailConfig:   ()     => api.post('/admin/me/email-config/test'),
+
+  // WhatsApp config
+  updateWhatsappConfig: (data) => api.patch('/admin/me/whatsapp-config', data),
 };
