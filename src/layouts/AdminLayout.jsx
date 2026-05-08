@@ -5,6 +5,7 @@ import {
   LogOut, Menu, X, GraduationCap, Bell, TrendingUp, MessageSquare
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
+import { authService } from '../services/auth.service';
 import { classNames, getInitials } from '../utils/formatters';
 
 const NAV_ITEMS = [
@@ -155,8 +156,18 @@ export default function AdminLayout() {
   const hoverTimeoutRef = useRef(null);
 
   const effectivelyCollapsed = collapsed && !isHovered;
-  const { user, logout } = useAuthStore();
+  const { user, setAuth, logout } = useAuthStore();
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    authService.adminProfile()
+      .then(res => {
+        if (res.data) {
+          setAuth(localStorage.getItem('token'), res.data, 'admin');
+        }
+      })
+      .catch(() => console.error('Failed to sync admin profile'));
+  }, []);
 
   const handleLogout = () => {
     logout();

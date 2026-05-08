@@ -4,6 +4,7 @@ import {
   LayoutDashboard, History, LogOut, Menu, X, GraduationCap, Bell
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
+import { authService } from '../services/auth.service';
 import { classNames, getInitials } from '../utils/formatters';
 
 const NAV_ITEMS = [
@@ -141,9 +142,23 @@ export default function StudentLayout() {
   const hoverTimeoutRef = useRef(null);
 
   const effectivelyCollapsed = collapsed && !isHovered;
-  const { user, logout } = useAuthStore();
+  const { user, setAuth, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+
+  React.useEffect(() => {
+    authService.studentProfile()
+      .then(res => {
+        if (res.data) {
+          // Update store with fresh data but keep existing token and role
+          setAuth(localStorage.getItem('token'), res.data, 'student');
+        }
+      })
+      .catch(() => {
+        // If profile fetch fails, token might be invalid
+        console.error('Failed to sync student profile');
+      });
+  }, []);
 
   const handleLogout = () => {
     logout();

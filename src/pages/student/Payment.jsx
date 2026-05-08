@@ -198,8 +198,13 @@ export default function PaymentPage() {
             <p className="text-sm font-medium text-gray-900">{formatDate(fee.dueDate)}</p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-500">Amount</p>
-            <p className="text-2xl font-bold text-gray-900">{formatCurrency(fee.amount)}</p>
+            <p className="text-xs text-gray-500">{fee.paidAmount > 0 ? 'Remaining to Pay' : 'Amount'}</p>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(fee.amount - (fee.paidAmount || 0))}</p>
+            {fee.paidAmount > 0 && (
+              <p className="text-[10px] text-green-600 font-bold uppercase mt-1">
+                (Total: {formatCurrency(fee.amount)}, Paid: {formatCurrency(fee.paidAmount)})
+              </p>
+            )}
           </div>
         </div>
       </Card>
@@ -258,7 +263,7 @@ export default function PaymentPage() {
         onClick={handlePay}
       >
         <ShieldCheck size={18} />
-        Pay {formatCurrency(fee.amount)} via {selectedProvider ? PROVIDER_META[selectedProvider]?.label || selectedProvider : '…'}
+        Pay {formatCurrency(fee.amount - (fee.paidAmount || 0))} via {selectedProvider ? PROVIDER_META[selectedProvider]?.label || selectedProvider : '…'}
       </Button>
 
       <p className="text-center text-xs text-gray-400">

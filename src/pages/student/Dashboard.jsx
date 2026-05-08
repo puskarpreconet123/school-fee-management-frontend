@@ -48,9 +48,9 @@ export default function StudentDashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  const unpaid = fees.filter((f) => f.status === 'UNPAID' || f.status === 'OVERDUE');
+  const unpaid = fees.filter((f) => f.status === 'UNPAID' || f.status === 'OVERDUE' || f.status === 'PARTIALLY_PAID');
   const paid = fees.filter((f) => f.status === 'PAID');
-  const totalDue = unpaid.reduce((s, f) => s + f.amount, 0);
+  const totalDue = unpaid.reduce((s, f) => s + (f.amount - (f.paidAmount || 0)), 0);
 
   const upcoming = [...unpaid]
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
@@ -193,18 +193,28 @@ export default function StudentDashboard() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-extrabold text-gray-900 text-lg tracking-tight truncate">{f.title}</h3>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-3 mt-1">
                         <span className={classNames(
                           'text-[10px] font-black tracking-tight rounded-md px-2 py-0.5 uppercase',
                           f.status === 'OVERDUE' ? 'bg-red-50 text-red-600' : 'bg-brand-50 text-brand-700'
                         )}>
                           Due {formatDate(f.dueDate)}
                         </span>
+                        {f.paidAmount > 0 && (
+                          <span className="text-[10px] font-black tracking-tight rounded-md px-2 py-0.5 uppercase bg-green-50 text-green-700">
+                            Paid: {formatCurrency(f.paidAmount)}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center justify-between sm:justify-end gap-6 sm:pl-4">
                       <div className="text-right">
-                        <p className="font-black text-2xl text-gray-900 tracking-tighter">{formatCurrency(f.amount)}</p>
+                        <p className="font-black text-2xl text-gray-900 tracking-tighter">
+                          {formatCurrency(f.amount - (f.paidAmount || 0))}
+                        </p>
+                        {f.paidAmount > 0 && (
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Remaining</p>
+                        )}
                       </div>
                       <Button
                         className="rounded-xl px-6"

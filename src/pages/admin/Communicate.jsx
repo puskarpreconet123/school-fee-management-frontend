@@ -31,8 +31,8 @@ const RuleChannelToggle = ({ selected = [], onChange }) => {
             key={ch.id}
             type="button"
             onClick={() => {
-              const next = isActive 
-                ? (selected.length > 1 ? selected.filter(x => x !== ch.id) : selected) 
+              const next = isActive
+                ? (selected.length > 1 ? selected.filter(x => x !== ch.id) : selected)
                 : [...selected, ch.id];
               onChange(next);
             }}
@@ -153,9 +153,9 @@ export default function CommunicatePage() {
       if (res.data) {
         const wc = res.data.whatsappConfig;
         const wd = res.data.whatsappDefaults || {};
-        const isConfigured = (wc?.useCustom && wc.channelId && wc.apiKey && wc.accessToken && wc.wabaId) || 
-                            (wd.channelId && wd.apiKey && wd.accessToken && wd.wabaId) ||
-                            (wc?.channelId && wc.apiKey && wc.accessToken && wc.wabaId);
+        const isConfigured = (wc?.useCustom && wc.channelId && wc.apiKey && wc.accessToken && wc.wabaId) ||
+          (wd.channelId && wd.apiKey && wd.accessToken && wd.wabaId) ||
+          (wc?.channelId && wc.apiKey && wc.accessToken && wc.wabaId);
         setWhatsappConfigured(!!isConfigured);
 
         setReminderRules((res.data.reminderRules || []).map(r => ({ ...r, channels: r.channels || [r.channel || 'sms'] })));
@@ -188,7 +188,7 @@ export default function CommunicatePage() {
       if (!silent) setLoadingTemplates(false);
     }
   };
-  
+
   const handleSyncTemplates = async () => {
     setSyncingTemplates(true);
     try {
@@ -238,7 +238,7 @@ export default function CommunicatePage() {
   // Normal Send Logic
   const handleSendNormal = async () => {
     if (!message.trim()) { toast.error('Please enter a message'); return; }
-    
+
     const channels = mainTab === 'text' ? textChannels : voiceChannel;
     if (channels.length === 0) { toast.error('Please select at least one channel'); return; }
 
@@ -288,7 +288,7 @@ export default function CommunicatePage() {
       const db = Number(r.daysBefore);
       const tp = Number(r.timesPerDay);
       if (isNaN(db) || db < 0 || db > 60) { toast.error(`Rule ${i + 1}: days before must be 0–60`); return; }
-      if (!tp || tp < 1 || tp > 5)        { toast.error(`Rule ${i + 1}: times per day must be 1–5`); return; }
+      if (!tp || tp < 1 || tp > 5) { toast.error(`Rule ${i + 1}: times per day must be 1–5`); return; }
     }
     const days = reminderRules.map((r) => Number(r.daysBefore));
     if (new Set(days).size !== days.length) { toast.error('Each rule must have a unique "days before" value'); return; }
@@ -300,9 +300,9 @@ export default function CommunicatePage() {
         timesPerDay: Number(r.timesPerDay),
         channels: r.channels || ['sms']
       }));
-      await api.patch('/admin/me/reminder-settings', { 
+      await api.patch('/admin/me/reminder-settings', {
         reminderRules: payload,
-        reminderMessageTemplate 
+        reminderMessageTemplate
       });
       toast.success('Pre-due Reminder rules and template saved');
     } catch (err) {
@@ -317,11 +317,11 @@ export default function CommunicatePage() {
       const da = Number(r.daysAfter);
       const tp = Number(r.timesPerDay);
       if (isNaN(da) || da < 1 || da > 180) { toast.error(`Overdue rule ${i + 1}: days after must be 1–180`); return; }
-      if (!tp || tp < 1 || tp > 5)          { toast.error(`Overdue rule ${i + 1}: times per day must be 1–5`); return; }
+      if (!tp || tp < 1 || tp > 5) { toast.error(`Overdue rule ${i + 1}: times per day must be 1–5`); return; }
     }
     const days = overdueRules.map((r) => Number(r.daysAfter));
     if (new Set(days).size !== days.length) { toast.error('Each overdue rule must have a unique "days after" value'); return; }
-    
+
     setSavingOverdue(true);
     try {
       const payload = overdueRules.map((r) => ({
@@ -329,7 +329,7 @@ export default function CommunicatePage() {
         timesPerDay: Number(r.timesPerDay),
         channels: r.channels || ['sms'],
       }));
-      await api.patch('/admin/me/overdue-settings', { 
+      await api.patch('/admin/me/overdue-settings', {
         overdueRules: payload,
         reminderMessageTemplate
       });
@@ -350,7 +350,7 @@ export default function CommunicatePage() {
     const id = Number(overdueRepeatRule?.intervalDays);
     const tp = Number(overdueRepeatRule?.timesPerDay);
     if (!id || id < 1 || id > 30) { toast.error('Repeat interval must be 1–30 days'); return; }
-    if (!tp || tp < 1 || tp > 5)  { toast.error('Times per day must be 1–5'); return; }
+    if (!tp || tp < 1 || tp > 5) { toast.error('Times per day must be 1–5'); return; }
     setSavingRepeat(true);
     try {
       await api.patch('/admin/me/overdue-repeat-rule', {
@@ -407,7 +407,7 @@ export default function CommunicatePage() {
             <p className="text-2xl font-bold text-slate-900">{totalBalance.toFixed(2)}</p>
           </div>
         </div>
-        
+
         <div className="flex-1 bg-white border border-slate-200 p-3 sm:p-4 rounded-xl flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-4">
           <div className="hidden sm:flex w-10 h-10 rounded-lg bg-slate-100 items-center justify-center text-slate-600">
             <span className="material-symbols-outlined">outbound</span>
@@ -432,7 +432,7 @@ export default function CommunicatePage() {
         {/* Center Main Panel (70%) */}
         <div className="w-full lg:w-[70%] space-y-6">
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            
+
             {/* Top Level Sub-Tabs */}
             <div className="p-4 sm:p-6 pb-0 border-b border-slate-100 bg-slate-50/50">
               <div className="flex bg-slate-200/50 p-1 rounded-xl w-full sm:w-full mb-6">
@@ -449,9 +449,9 @@ export default function CommunicatePage() {
                     const isSelected = activeArray.includes(opt.value);
                     const toggle = () => {
                       if (mainTab === 'voice') return; // Call is the only voice option
-                      setTextChannels(prev => 
-                        prev.includes(opt.value) 
-                          ? prev.filter(c => c !== opt.value) 
+                      setTextChannels(prev =>
+                        prev.includes(opt.value)
+                          ? prev.filter(c => c !== opt.value)
                           : [...prev, opt.value]
                       );
                     };
@@ -507,8 +507,8 @@ export default function CommunicatePage() {
                           onClick={() => setAudience(type.id)}
                           className={classNames(
                             'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border whitespace-nowrap',
-                            audience === type.id 
-                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' 
+                            audience === type.id
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md'
                               : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                           )}
                         >
@@ -544,7 +544,7 @@ export default function CommunicatePage() {
                     {audience === 'student' && (
                       <div className="space-y-3 bg-slate-50 border border-slate-200 rounded-xl p-4 animate-in zoom-in-95 duration-200">
                         <p className="text-[10px] font-bold text-slate-500 uppercase">Search & Add Students</p>
-                        
+
                         {/* Selected Students Chips */}
                         {selectedStudents.length > 0 && (
                           <div className="flex flex-wrap gap-2 mb-2">
@@ -563,7 +563,7 @@ export default function CommunicatePage() {
                           <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
                             <Users size={16} />
                           </div>
-                          <input 
+                          <input
                             type="text"
                             value={studentSearch}
                             onChange={(e) => handleStudentSearch(e.target.value)}
@@ -612,10 +612,10 @@ export default function CommunicatePage() {
 
                   {/* Textarea */}
                   <div className="relative">
-                    <textarea 
+                    <textarea
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
-                      className="w-full h-[180px] border border-slate-200 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none outline-none" 
+                      className="w-full h-[180px] border border-slate-200 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none outline-none"
                       placeholder="Type your message here... Use {student_name} or {amount_due} for variables."
                     />
                     <div className="absolute bottom-4 right-4 bg-white/80 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-slate-500 border border-slate-100">
@@ -629,8 +629,8 @@ export default function CommunicatePage() {
                       <div className="flex flex-col sm:flex-row items-end gap-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 animate-in slide-in-from-top-2 duration-200">
                         <div className="flex-1 w-full">
                           <label className="block text-xs font-bold text-indigo-700 mb-1.5 uppercase tracking-wide">Select Delivery Date & Time</label>
-                          <input 
-                            type="datetime-local" 
+                          <input
+                            type="datetime-local"
                             value={scheduledAt}
                             onChange={(e) => setScheduledAt(e.target.value)}
                             min={new Date().toISOString().slice(0, 16)}
@@ -645,7 +645,7 @@ export default function CommunicatePage() {
 
                     <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
                       {!showScheduler ? (
-                        <button 
+                        <button
                           onClick={() => setShowScheduler(true)}
                           className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-all border border-transparent flex items-center justify-center gap-2"
                         >
@@ -654,9 +654,9 @@ export default function CommunicatePage() {
                       ) : (
                         <div />
                       )}
-                      <Button 
-                        onClick={handleSendNormal} 
-                        loading={sending} 
+                      <Button
+                        onClick={handleSendNormal}
+                        loading={sending}
                         className="w-full sm:w-auto justify-center !bg-indigo-600 hover:!bg-indigo-700 !text-white px-8 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
                       >
                         {scheduledAt ? 'Schedule Message' : 'Send Message'}
@@ -684,11 +684,11 @@ export default function CommunicatePage() {
                       </div>
                     </div>
                     <div className="relative">
-                      <textarea 
+                      <textarea
                         id="reminder-template-area"
                         value={reminderMessageTemplate}
                         onChange={(e) => setReminderMessageTemplate(e.target.value)}
-                        className="w-full h-[120px] border border-slate-200 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none outline-none" 
+                        className="w-full h-[120px] border border-slate-200 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none outline-none"
                         placeholder="Type the reminder message template here..."
                       />
                       <div className="mt-2 flex flex-wrap gap-x-2 gap-y-2">
@@ -713,7 +713,7 @@ export default function CommunicatePage() {
                               const end = textarea.selectionEnd;
                               const text = reminderMessageTemplate;
                               const before = text.substring(0, start);
-                              const after  = text.substring(end, text.length);
+                              const after = text.substring(end, text.length);
                               setReminderMessageTemplate(before + v.key + after);
                               // Refocus
                               setTimeout(() => {
@@ -744,7 +744,7 @@ export default function CommunicatePage() {
                         <p className="text-sm text-slate-500 mt-1">Reminders sent before the fee is due.</p>
                       </div>
                     </div>
-                    
+
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                       <div className="grid grid-cols-[0.8fr_0.8fr_auto_auto] gap-3 mb-2 px-1">
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Days before</span>
@@ -815,7 +815,7 @@ export default function CommunicatePage() {
                       <div className="flex items-center justify-between mb-4">
                         <span className="text-sm font-bold text-slate-800">Enable continuous reminders</span>
                         <button onClick={() => { setRepeatEnabled(v => !v); if (!overdueRepeatRule) setOverdueRepeatRule({ intervalDays: 3, timesPerDay: 1, channels: ['sms'] }); }} className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${repeatEnabled ? 'bg-red-500' : 'bg-slate-200'}`}>
-                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${repeatEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                          <span className={`inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition ${repeatEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                         </button>
                       </div>
                       {repeatEnabled && (
@@ -847,7 +847,7 @@ export default function CommunicatePage() {
                       <p className="text-sm text-amber-700 max-w-md mx-auto mb-6">
                         To manage WhatsApp templates and sync with Meta, you need to configure your Brandmo.ai credentials including API Key and WABA ID.
                       </p>
-                      <Button onClick={() => window.location.href='/admin/settings'} className="!bg-amber-600 hover:!bg-amber-700 !text-white font-bold px-8">
+                      <Button onClick={() => window.location.href = '/admin/settings'} className="!bg-amber-600 hover:!bg-amber-700 !text-white font-bold px-8">
                         Go to Settings
                       </Button>
                     </div>
@@ -859,10 +859,10 @@ export default function CommunicatePage() {
                           <p className="text-sm text-slate-500">Create and manage your official business templates.</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button 
-                            variant="secondary" 
-                            size="sm" 
-                            loading={syncingTemplates} 
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            loading={syncingTemplates}
                             onClick={handleSyncTemplates}
                             className="flex items-center gap-2"
                           >
@@ -882,14 +882,12 @@ export default function CommunicatePage() {
                                 <h3 className="font-bold text-slate-900 text-sm truncate max-w-[150px]">{tpl.name}</h3>
                                 <div className="flex items-center gap-3 mt-1.5">
                                   <div className="flex items-center gap-1.5">
-                                    <div className={`w-2 h-2 rounded-full ${
-                                      tpl.status === 'APPROVED' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 
-                                      (tpl.status === 'REJECTED' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]' : 'bg-amber-500 animate-pulse')
-                                    }`} />
-                                    <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                                      tpl.status === 'APPROVED' ? 'text-green-600' : 
-                                      (tpl.status === 'REJECTED' ? 'text-red-600' : 'text-amber-600')
-                                    }`}>
+                                    <div className={`w-2 h-2 rounded-full ${tpl.status === 'APPROVED' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' :
+                                        (tpl.status === 'REJECTED' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]' : 'bg-amber-500 animate-pulse')
+                                      }`} />
+                                    <span className={`text-[10px] font-bold uppercase tracking-wider ${tpl.status === 'APPROVED' ? 'text-green-600' :
+                                        (tpl.status === 'REJECTED' ? 'text-red-600' : 'text-amber-600')
+                                      }`}>
                                       {tpl.status}
                                     </span>
                                   </div>
@@ -971,7 +969,7 @@ export default function CommunicatePage() {
                 <span className="font-bold text-slate-900">{balances?.call?.toFixed(2) ?? '0.00'}</span>
               </div>
             </div>
-            
+
             <button className="w-full border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all font-bold py-2.5 rounded-xl text-sm">
               Top Up Credits
             </button>
@@ -1044,7 +1042,7 @@ export default function CommunicatePage() {
                 </table>
               )}
             </div>
-            
+
             {ledgerMeta.pages > 1 && (
               <div className="flex items-center justify-between px-4 py-3 border-t border-slate-50 bg-slate-50/50">
                 <Button variant="secondary" size="sm" disabled={ledgerPage <= 1} onClick={() => loadCredits(ledgerPage - 1)}>Prev</Button>
@@ -1056,7 +1054,7 @@ export default function CommunicatePage() {
         </div>
       </div>
       {showTemplateModal && (
-        <TemplateModal 
+        <TemplateModal
           template={editingTemplate}
           onClose={() => setShowTemplateModal(false)}
           onSave={handleSaveTemplate}
@@ -1076,10 +1074,10 @@ export default function CommunicatePage() {
             </div>
             <div className="p-6 overflow-y-auto flex items-center justify-center">
               <div className="w-full">
-                <WhatsAppPreview 
-                  body={viewingTemplate.body} 
-                  header={viewingTemplate.header} 
-                  footer={viewingTemplate.footer} 
+                <WhatsAppPreview
+                  body={viewingTemplate.body}
+                  header={viewingTemplate.header}
+                  footer={viewingTemplate.footer}
                 />
               </div>
             </div>
@@ -1115,7 +1113,7 @@ const WhatsAppPreview = ({ body, header, footer }) => {
   };
 
   return (
-    <div 
+    <div
       className="bg-[#efeae2] p-4 rounded-xl w-[280px] mx-auto shadow-inner relative overflow-hidden"
       style={{ backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', backgroundSize: '50%', backgroundBlendMode: 'overlay', opacity: 0.95 }}
     >
@@ -1173,9 +1171,9 @@ const TemplateModal = ({ template, onClose, onSave, loading }) => {
     const start = area.selectionStart;
     const end = area.selectionEnd;
     const text = data.body;
-    setData(prev => ({ 
-      ...prev, 
-      body: text.substring(0, start) + variableId + text.substring(end) 
+    setData(prev => ({
+      ...prev,
+      body: text.substring(0, start) + variableId + text.substring(end)
     }));
     setTimeout(() => {
       area.focus();
@@ -1199,17 +1197,17 @@ const TemplateModal = ({ template, onClose, onSave, loading }) => {
         <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
-              <Input 
-                label="Template Name" 
-                placeholder="e.g. fee_reminder_june" 
-                value={data.name} 
-                onChange={e => setData({...data, name: e.target.value.toLowerCase().replace(/\s/g, '_')})}
+              <Input
+                label="Template Name"
+                placeholder="e.g. fee_reminder_june"
+                value={data.name}
+                onChange={e => setData({ ...data, name: e.target.value.toLowerCase().replace(/\s/g, '_') })}
                 disabled={!!template}
               />
-              <Select 
-                label="Category" 
-                value={data.category} 
-                onChange={e => setData({...data, category: e.target.value})}
+              <Select
+                label="Category"
+                value={data.category}
+                onChange={e => setData({ ...data, category: e.target.value })}
                 options={[
                   { value: 'MARKETING', label: 'Marketing' },
                   { value: 'UTILITY', label: 'Utility' },
@@ -1220,21 +1218,21 @@ const TemplateModal = ({ template, onClose, onSave, loading }) => {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Header Text (Optional)</label>
-              <Input 
-                placeholder="Enter header text..." 
-                value={data.header?.text || ''} 
-                onChange={e => setData({...data, header: { ...data.header, type: 'TEXT', text: e.target.value }})}
+              <Input
+                placeholder="Enter header text..."
+                value={data.header?.text || ''}
+                onChange={e => setData({ ...data, header: { ...data.header, type: 'TEXT', text: e.target.value } })}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Body Message</label>
-              <textarea 
+              <textarea
                 id="template-body-area"
                 className="w-full h-32 p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none"
                 placeholder="Write your message here..."
                 value={data.body}
-                onChange={e => setData({...data, body: e.target.value})}
+                onChange={e => setData({ ...data, body: e.target.value })}
               />
               <div className="mt-2 flex flex-wrap gap-2">
                 {variables.map(v => (
@@ -1250,11 +1248,11 @@ const TemplateModal = ({ template, onClose, onSave, loading }) => {
               </div>
             </div>
 
-            <Input 
-              label="Footer (Optional)" 
-              placeholder="e.g. Reply STOP to opt out" 
-              value={data.footer} 
-              onChange={e => setData({...data, footer: e.target.value})}
+            <Input
+              label="Footer (Optional)"
+              placeholder="e.g. Reply STOP to opt out"
+              value={data.footer}
+              onChange={e => setData({ ...data, footer: e.target.value })}
             />
           </div>
 

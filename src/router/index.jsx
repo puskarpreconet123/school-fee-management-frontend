@@ -16,6 +16,7 @@ import SettingsPage     from '../pages/admin/Settings';
 import AdminNotices     from '../pages/admin/Notices';
 import AdminAnalytics   from '../pages/admin/Analytics';
 import CommunicatePage  from '../pages/admin/Communicate';
+import AdminChangePassword from '../pages/admin/ChangePassword';
 
 // Student pages
 import StudentLogin     from '../pages/student/Login';
@@ -38,8 +39,11 @@ import PublicPaymentPage   from '../pages/PublicPayment';
 
 // ── Guards ────────────────────────────────────────────────────────────────────
 function RequireAdmin({ children }) {
-  const { token, role } = useAuthStore.getState();
+  const { token, role, user } = useAuthStore.getState();
   if (!token || role !== 'admin') return <Navigate to="/" replace />;
+  if (user?.mustChangePassword && window.location.pathname !== '/admin/change-password') {
+    return <Navigate to="/admin/change-password" replace />;
+  }
   return children;
 }
 
@@ -59,8 +63,11 @@ function RequireSuperAdmin({ children }) {
 }
 
 function RedirectIfAuthed() {
-  const { token, role } = useAuthStore.getState();
-  if (token && role === 'admin') return <Navigate to="/admin/dashboard" replace />;
+  const { token, role, user } = useAuthStore.getState();
+  if (token && role === 'admin') {
+    if (user?.mustChangePassword) return <Navigate to="/admin/change-password" replace />;
+    return <Navigate to="/admin/dashboard" replace />;
+  }
   if (token && role === 'student') return <Navigate to="/student/dashboard" replace />;
   return <AdminLogin />;
 }
@@ -104,6 +111,10 @@ export const router = createBrowserRouter([
       { path: 'communicate', element: <CommunicatePage /> },
       { path: 'settings',    element: <SettingsPage /> },
     ],
+  },
+  {
+    path: '/admin/change-password',
+    element: <AdminChangePassword />,
   },
 
   // Student routes

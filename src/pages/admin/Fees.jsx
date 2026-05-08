@@ -12,6 +12,7 @@ import { feeService } from '../../services/fee.service';
 import { studentService } from '../../services/student.service';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { toast } from '../../store/useToastStore';
+import useAuthStore from '../../store/useAuthStore';
 import Pagination from '../../components/ui/Pagination';
 
 const STATUS_OPTS = [
@@ -35,6 +36,7 @@ const EMPTY_FORM = {
 };
 
 export default function FeesPage() {
+  const { user } = useAuthStore();
   const [fees, setFees] = useState([]);
   const [meta, setMeta] = useState({});
   const [loading, setLoading] = useState(true);
@@ -215,16 +217,21 @@ export default function FeesPage() {
                   {f.status === 'OVERDUE' ? (
                     <button
                       onClick={() => handleToggleReminder(f)}
-                      title={f.overdueReminderEnabled !== false ? 'Stop reminders' : 'Resume reminders'}
+                      disabled={!(user?.overdueRules?.length > 0 || !!user?.overdueRepeatRule)}
+                      title={!(user?.overdueRules?.length > 0 || !!user?.overdueRepeatRule) ? 'No overdue rules configured in Settings' : (f.overdueReminderEnabled !== false ? 'Stop reminders' : 'Resume reminders')}
                       className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border transition ${
-                        f.overdueReminderEnabled !== false
-                          ? 'text-orange-700 bg-orange-50 border-orange-200 hover:bg-orange-100'
-                          : 'text-gray-500 bg-gray-50 border-gray-200 hover:bg-gray-100'
+                        !(user?.overdueRules?.length > 0 || !!user?.overdueRepeatRule)
+                          ? 'text-gray-400 bg-gray-50 border-gray-100 cursor-not-allowed'
+                          : f.overdueReminderEnabled !== false
+                            ? 'text-orange-700 bg-orange-50 border-orange-200 hover:bg-orange-100'
+                            : 'text-gray-500 bg-gray-50 border-gray-200 hover:bg-gray-100'
                       }`}
                     >
-                      {f.overdueReminderEnabled !== false
-                        ? <><Bell size={12} /> Active</>
-                        : <><BellOff size={12} /> Stopped</>}
+                      {!(user?.overdueRules?.length > 0 || !!user?.overdueRepeatRule)
+                        ? <><BellOff size={12} /> Rules Off</>
+                        : f.overdueReminderEnabled !== false
+                          ? <><Bell size={12} /> Active</>
+                          : <><BellOff size={12} /> Stopped</>}
                     </button>
                   ) : (
                     <span className="text-gray-300 text-xs">—</span>

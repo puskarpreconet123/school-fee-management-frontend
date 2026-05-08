@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Plus, Search, Building2, PowerOff, Power, Trash2 } from 'lucide-react';
+import { Plus, Search, Building2, PowerOff, Power, Trash2, KeyRound, CheckCircle2 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
@@ -31,6 +31,10 @@ export default function SchoolsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [resetTarget, setResetTarget] = useState(null);
+  const [reseting, setReseting] = useState(false);
+  const [resetResult, setResetResult] = useState(null);
 
   const load = useCallback(async (p = page, q = search, status = statusFilter) => {
     setLoading(true);
@@ -103,6 +107,20 @@ export default function SchoolsPage() {
       toast.error(err.message || 'Failed to delete school');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setReseting(true);
+    try {
+      const res = await superadminService.resetSchoolPassword(resetTarget._id);
+      setResetResult({ name: res.data.name, password: res.data.tempPassword });
+      setResetTarget(null);
+      toast.success('Password reset successfully');
+    } catch (err) {
+      toast.error(err.message || 'Failed to reset password');
+    } finally {
+      setReseting(false);
     }
   };
 
@@ -226,6 +244,13 @@ export default function SchoolsPage() {
                         ].join(' ')}
                       >
                         {s.isActive ? <PowerOff size={15} /> : <Power size={15} />}
+                      </button>
+                      <button
+                        title="Reset Password"
+                        onClick={() => setResetTarget(s)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                      >
+                        <KeyRound size={15} />
                       </button>
                       <button
                         title="Delete"
@@ -369,6 +394,53 @@ export default function SchoolsPage() {
           Are you sure you want to permanently delete <strong>{deleteTarget?.name}</strong>?
           This cannot be undone.
         </p>
+      </Modal>
+
+      {/* Reset Password Confirm */}
+      <Modal
+        open={!!resetTarget}
+        onClose={() => setResetTarget(null)}
+        title="Reset Password"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setResetTarget(null)}>Cancel</Button>
+            <Button loading={reseting} onClick={handleResetPassword}>Reset Password</Button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-600">
+          Are you sure you want to reset the password for <strong>{resetTarget?.name}</strong>?
+          A new random password will be generated.
+        </p>
+      </Modal>
+
+      {/* Reset Success Modal */}
+      <Modal
+        open={!!resetResult}
+        onClose={() => setResetResult(null)}
+        title="Password Reset Successful"
+        size="sm"
+        footer={<Button onClick={() => setResetResult(null)}>Got it</Button>}
+      >
+        <div className="space-y-4 text-center py-2">
+          <div className="mx-auto w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+            <CheckCircle2 size={24} />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">New password for</p>
+            <p className="text-lg font-bold text-gray-900">{resetResult?.name}</p>
+          </div>
+          <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+            <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Temporary Password</p>
+            <p className="text-2xl font-mono font-bold text-violet-600 tracking-wider">
+              {resetResult?.password}
+            </p>
+            <p className="text-[10px] text-gray-400 mt-2 italic">
+              Please share this password with the school admin. They will be required to change it on their next login.
+            </p>
+          </div>
+        </div>
       </Modal>
     </div>
   );

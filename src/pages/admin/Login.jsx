@@ -30,7 +30,11 @@ export default function AdminLogin() {
       const res = await authService.adminLogin(form);
       setAuth(res.data.token, res.data.school, 'admin');
       toast.success('Welcome back!');
-      navigate('/admin/dashboard');
+      if (res.data.school.mustChangePassword) {
+        navigate('/admin/change-password');
+      } else {
+        navigate('/admin/dashboard');
+      }
     } catch (err) {
       toast.error(err.message || 'Login failed');
     } finally {

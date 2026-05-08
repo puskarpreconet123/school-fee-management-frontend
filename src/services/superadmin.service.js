@@ -10,6 +10,7 @@ export const superadminService = {
   createSchool: (data) => api.post('/superadmin/schools', data),
   updateSchool: (id, data) => api.patch(`/superadmin/schools/${id}`, data),
   toggleSchoolStatus: (id) => api.patch(`/superadmin/schools/${id}/status`),
+  resetSchoolPassword: (id) => api.post(`/superadmin/schools/${id}/reset-password`),
   deleteSchool: (id) => api.delete(`/superadmin/schools/${id}`),
 
   listPayments: (params) => api.get('/superadmin/payments', { params }),
