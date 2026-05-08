@@ -188,7 +188,7 @@ export default function SettingsPage() {
   const [showEmailPass, setShowEmailPass] = useState(false);
   const [editingEmail, setEditingEmail] = useState(false);
 
-  const DEFAULT_WHATSAPP_CONFIG = { apiUrl: '', channelId: '', apiKey: '', wabaId: '', apiVersion: '', useCustom: false };
+  const DEFAULT_WHATSAPP_CONFIG = { apiUrl: '', channelId: '', apiKey: '', accessToken: '', wabaId: '', apiVersion: '', useCustom: false };
   const [whatsappConfig, setWhatsappConfig] = useState(DEFAULT_WHATSAPP_CONFIG);
 
   const [showWhatsappKey, setShowWhatsappKey] = useState(false);
@@ -225,6 +225,7 @@ export default function SettingsPage() {
             apiUrl: cfg.apiUrl || defaults.apiUrl || '',
             channelId: cfg.channelId || defaults.channelId || '',
             apiKey: cfg.apiKey || defaults.apiKey || '',
+            accessToken: cfg.accessToken || defaults.accessToken || '',
             wabaId: cfg.wabaId || defaults.wabaId || '',
             apiVersion: cfg.apiVersion || defaults.apiVersion || '',
           });
@@ -263,8 +264,8 @@ export default function SettingsPage() {
       }
     }
     if (whatsappConfig.useCustom) {
-      if (!whatsappConfig.apiUrl || !whatsappConfig.channelId || !whatsappConfig.apiKey || !whatsappConfig.wabaId || !whatsappConfig.apiVersion) {
-        toast.error('API URL, Channel ID, API Key, WABA ID, and API Version are required for WhatsApp integration');
+      if (!whatsappConfig.apiUrl || !whatsappConfig.channelId || !whatsappConfig.apiKey || !whatsappConfig.accessToken || !whatsappConfig.wabaId || !whatsappConfig.apiVersion) {
+        toast.error('API URL, Channel ID, API Key, Access Token, WABA ID, and API Version are required for WhatsApp integration');
         return;
       }
     }
@@ -583,15 +584,15 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500 text-xs font-medium w-24 shrink-0">Channel ID</span>
-                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right">{whatsappConfig.channelId || '—'}</span>
+                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right truncate ml-4">{whatsappConfig.channelId || '—'}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500 text-xs font-medium w-24 shrink-0">WABA ID</span>
-                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right">{whatsappConfig.wabaId || '—'}</span>
+                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right truncate ml-4">{whatsappConfig.wabaId || '—'}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500 text-xs font-medium w-24 shrink-0">API Version</span>
-                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right">{whatsappConfig.apiVersion || '—'}</span>
+                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right truncate ml-4">{whatsappConfig.apiVersion || '—'}</span>
                 </div>
               </div>
             )}
@@ -619,7 +620,7 @@ export default function SettingsPage() {
                   onChange={(e) => setWhatsappConfig((c) => ({ ...c, apiUrl: e.target.value }))}
                 />
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
                     label="Channel ID"
                     placeholder="Your Channel ID"
@@ -634,7 +635,7 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <Input
                     label="API Version"
                     placeholder="v20.0"
@@ -656,6 +657,15 @@ export default function SettingsPage() {
                     >
                       {showWhatsappKey ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
+                  </div>
+                  <div className="relative md:col-span-2">
+                    <Input
+                      label="Access Token"
+                      type={showWhatsappKey ? 'text' : 'password'}
+                      placeholder="Access Token (Bearer)"
+                      value={whatsappConfig.accessToken}
+                      onChange={(e) => setWhatsappConfig((c) => ({ ...c, accessToken: e.target.value }))}
+                    />
                   </div>
                 </div>
 
