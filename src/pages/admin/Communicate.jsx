@@ -765,7 +765,7 @@ export default function CommunicatePage() {
                       <button type="button" onClick={addRule} className="mt-4 flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-bold"><Plus size={15} /> Add Rule</button>
                     </div>
                     <div className="mt-4 flex justify-end">
-                      <Button loading={savingReminder} onClick={handleSaveReminder} className="!bg-indigo-600 !text-white hover:!bg-indigo-700 text-sm font-bold px-6 py-2 rounded-lg flex items-center gap-2"><Save size={16} /> Save Pre-Due Rules & Template</Button>
+                      <Button variant="secondary" loading={savingReminder} onClick={handleSaveReminder} className="text-sm font-bold px-6 py-2 rounded-lg flex items-center gap-2"><Save size={16} /> Save Pre-Due Rules & Template</Button>
                     </div>
                   </div>
 

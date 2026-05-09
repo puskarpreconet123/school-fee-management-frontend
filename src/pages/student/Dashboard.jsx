@@ -22,7 +22,7 @@ function StatCard({ label, value, icon: Icon, color, sub }) {
   return (
     <Card className="flex items-center gap-5 animate-scale-in group overflow-hidden relative">
       <div className="absolute top-0 right-0 w-24 h-24 bg-current opacity-[0.03] -mr-8 -mt-8 rounded-full group-hover:scale-110 transition-transform duration-500" />
-      <div className={`w-14 h-14 rounded-2xl ${color} flex items-center justify-center shadow-2xl ${shadowColor} shrink-0 group-hover:scale-105 transition-transform duration-300`}>
+      <div className={`w-14 h-14 rounded-2xl ${color} flex items-center justify-center shadow-2xl ${shadowColor} shrink-0 smooth-transition transform-gpu group-hover:translate-y-[-2px]`}>
         <Icon size={24} className="text-white" />
       </div>
       <div className="min-w-0">

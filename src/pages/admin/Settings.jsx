@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Settings2, CheckCircle, AlertTriangle, Eye, EyeOff, Save, Bell, Plus, Trash2, RefreshCw, Pencil, X as XIcon, Mail, Send } from 'lucide-react';
+import { Settings2, CheckCircle, AlertTriangle, Eye, EyeOff, Save, Bell, Plus, Trash2, RefreshCw, Pencil, X as XIcon, Mail, Send, Copy } from 'lucide-react';
 import Card, { CardHeader } from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -141,10 +141,28 @@ function ProviderCard({ name, label, description, provider, onChange, showSecret
                   value={cfg[f.key] || ''}
                   onChange={(e) => updateCfg(f.key, e.target.value)}
                   placeholder={f.placeholder}
+                  className="pr-20"
                 />
-                <button type="button" onClick={onToggleSecrets} className="absolute right-3 top-8 text-gray-400 hover:text-gray-600">
-                  {showSecrets ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
+                <div className="absolute right-2 top-8 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={onToggleSecrets}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    {showSecrets ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(cfg[f.key] || '');
+                      toast.success(`${f.label} copied`);
+                    }}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                    title={`Copy ${f.label}`}
+                  >
+                    <Copy size={15} />
+                  </button>
+                </div>
               </div>
             ) : (
               <Input
@@ -486,14 +504,29 @@ export default function SettingsPage() {
                     placeholder="••••••••"
                     value={emailConfig.pass}
                     onChange={(e) => setEmailConfig((c) => ({ ...c, pass: e.target.value }))}
+                    className="pr-20"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowEmailPass((s) => !s)}
-                    className="absolute right-3 top-8 text-gray-400 hover:text-gray-600"
-                  >
-                    {showEmailPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
+                  <div className="absolute right-2 top-8 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowEmailPass((s) => !s)}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                      title={showEmailPass ? "Hide Password" : "View Password"}
+                    >
+                      {showEmailPass ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(emailConfig.pass);
+                        toast.success('SMTP Password copied');
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                      title="Copy Password"
+                    >
+                      <Copy size={15} />
+                    </button>
+                  </div>
                 </div>
 
                 <Input
@@ -642,22 +675,37 @@ export default function SettingsPage() {
                     value={whatsappConfig.apiVersion}
                     onChange={(e) => setWhatsappConfig((c) => ({ ...c, apiVersion: e.target.value }))}
                   />
-                  <div className="relative">
-                    <Input
-                      label="API Key"
-                      type={showWhatsappKey ? 'text' : 'password'}
-                      placeholder="••••••••"
-                      value={whatsappConfig.apiKey}
-                      onChange={(e) => setWhatsappConfig((c) => ({ ...c, apiKey: e.target.value }))}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowWhatsappKey((s) => !s)}
-                      className="absolute right-3 top-8 text-gray-400 hover:text-gray-600"
-                    >
-                      {showWhatsappKey ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
+                    <div className="relative">
+                      <Input
+                        label="API Key"
+                        type={showWhatsappKey ? 'text' : 'password'}
+                        placeholder="••••••••"
+                        value={whatsappConfig.apiKey}
+                        onChange={(e) => setWhatsappConfig((c) => ({ ...c, apiKey: e.target.value }))}
+                        className="pr-20"
+                      />
+                      <div className="absolute right-2 top-8 flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowWhatsappKey((s) => !s)}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                          title={showWhatsappKey ? "Hide Key" : "View Key"}
+                        >
+                          {showWhatsappKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(whatsappConfig.apiKey);
+                            toast.success('API Key copied');
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                          title="Copy Key"
+                        >
+                          <Copy size={15} />
+                        </button>
+                      </div>
+                    </div>
                   <div className="relative md:col-span-2">
                     <Input
                       label="Access Token"
@@ -665,7 +713,29 @@ export default function SettingsPage() {
                       placeholder="Access Token (Bearer)"
                       value={whatsappConfig.accessToken}
                       onChange={(e) => setWhatsappConfig((c) => ({ ...c, accessToken: e.target.value }))}
+                      className="pr-20"
                     />
+                    <div className="absolute right-2 top-8 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowWhatsappKey((s) => !s)}
+                        className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                        title={showWhatsappKey ? "Hide Token" : "View Token"}
+                      >
+                        {showWhatsappKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(whatsappConfig.accessToken);
+                          toast.success('Access Token copied');
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                        title="Copy Token"
+                      >
+                        <Copy size={15} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 

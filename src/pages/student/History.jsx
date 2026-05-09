@@ -16,9 +16,9 @@ const STATUS_OPTS = [
 ];
 
 const statusIcon = {
-  SUCCESS: <CheckCircle size={16} className="text-green-500" />,
-  PENDING: <Clock size={16} className="text-yellow-500" />,
-  FAILED: <XCircle size={16} className="text-red-500" />,
+  SUCCESS: <CheckCircle size={16} className="text-current" />,
+  PENDING: <Clock size={16} className="text-current" />,
+  FAILED: <XCircle size={16} className="text-current" />,
 };
 
 export default function HistoryPage() {
@@ -77,10 +77,10 @@ export default function HistoryPage() {
               style={{ animationDelay: `${idx * 50}ms` }}
             >
               <div className={classNames(
-                'w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center smooth-transition',
-                p.status === 'SUCCESS' ? 'bg-green-50 text-green-600 group-hover:bg-green-600 group-hover:text-white' :
-                  p.status === 'FAILED' ? 'bg-red-50 text-red-600 group-hover:bg-red-600 group-hover:text-white' :
-                    'bg-yellow-50 text-yellow-600 group-hover:bg-yellow-600 group-hover:text-white'
+                'w-12 h-12 shrink-0 rounded-2xl flex items-center justify-center smooth-transition transform-gpu',
+                p.status === 'SUCCESS' ? 'bg-green-50 text-green-600 group-hover:bg-green-100' :
+                  p.status === 'FAILED' ? 'bg-red-50 text-red-600 group-hover:bg-red-100' :
+                    'bg-yellow-50 text-yellow-600 group-hover:bg-yellow-100'
               )}>
                 {statusIcon[p.status] || <Clock size={20} />}
               </div>
