@@ -206,7 +206,7 @@ export default function SettingsPage() {
   const [showEmailPass, setShowEmailPass] = useState(false);
   const [editingEmail, setEditingEmail] = useState(false);
 
-  const DEFAULT_WHATSAPP_CONFIG = { apiUrl: '', channelId: '', apiKey: '', accessToken: '', wabaId: '', apiVersion: '', useCustom: false };
+  const DEFAULT_WHATSAPP_CONFIG = { apiUrl: '', channelId: '', apiKey: '', accessToken: '', wabaId: '', phoneNumberId: '', apiVersion: '', useCustom: false };
   const [whatsappConfig, setWhatsappConfig] = useState(DEFAULT_WHATSAPP_CONFIG);
 
   const [showWhatsappKey, setShowWhatsappKey] = useState(false);
@@ -245,6 +245,7 @@ export default function SettingsPage() {
             apiKey: cfg.apiKey || defaults.apiKey || '',
             accessToken: cfg.accessToken || defaults.accessToken || '',
             wabaId: cfg.wabaId || defaults.wabaId || '',
+            phoneNumberId: cfg.phoneNumberId || defaults.phoneNumberId || '',
             apiVersion: cfg.apiVersion || defaults.apiVersion || '',
           });
         }
@@ -282,8 +283,8 @@ export default function SettingsPage() {
       }
     }
     if (whatsappConfig.useCustom) {
-      if (!whatsappConfig.apiUrl || !whatsappConfig.channelId || !whatsappConfig.apiKey || !whatsappConfig.accessToken || !whatsappConfig.wabaId || !whatsappConfig.apiVersion) {
-        toast.error('API URL, Channel ID, API Key, Access Token, WABA ID, and API Version are required for WhatsApp integration');
+      if (!whatsappConfig.apiUrl || !whatsappConfig.channelId || !whatsappConfig.apiKey || !whatsappConfig.accessToken || !whatsappConfig.phoneNumberId || !whatsappConfig.apiVersion) {
+        toast.error('API URL, Channel ID, API Key, Access Token, Phone Number ID, and API Version are required for WhatsApp integration');
         return;
       }
     }
@@ -624,7 +625,11 @@ export default function SettingsPage() {
                   <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right truncate ml-4">{whatsappConfig.wabaId || '—'}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500 text-xs font-medium w-24 shrink-0">API Version</span>
+                  <span className="text-gray-500 text-xs font-medium w-24 shrink-0">Phone ID</span>
+                  <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right truncate ml-4">{whatsappConfig.phoneNumberId || '—'}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500 text-xs font-medium w-24 shrink-0">Version</span>
                   <span className="font-mono text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg px-3 py-1 flex-1 text-right truncate ml-4">{whatsappConfig.apiVersion || '—'}</span>
                 </div>
               </div>
@@ -665,6 +670,12 @@ export default function SettingsPage() {
                     placeholder="WhatsApp Business Account ID"
                     value={whatsappConfig.wabaId}
                     onChange={(e) => setWhatsappConfig((c) => ({ ...c, wabaId: e.target.value }))}
+                  />
+                  <Input
+                    label="Phone Number ID"
+                    placeholder="Meta Phone Number ID"
+                    value={whatsappConfig.phoneNumberId}
+                    onChange={(e) => setWhatsappConfig((c) => ({ ...c, phoneNumberId: e.target.value }))}
                   />
                 </div>
 

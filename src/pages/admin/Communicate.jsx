@@ -13,6 +13,8 @@ import { authService } from '../../services/auth.service';
 import api from '../../services/api';
 import { formatDate, classNames } from '../../utils/formatters';
 import { toast } from '../../store/useToastStore';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 const RuleChannelToggle = ({ selected = [], onChange }) => {
   const channels = [
@@ -94,6 +96,10 @@ export default function CommunicatePage() {
   const [studentSuggestions, setStudentSuggestions] = useState([]);
   const [isSearchingStudents, setIsSearchingStudents] = useState(false);
   const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState({}); // Per-channel customization
+  const [selectedCampaignTemplateId, setSelectedCampaignTemplateId] = useState('');
+  const [sendOption, setSendOption] = useState('quick'); // 'quick', 'custom', 'template'
+  const [activeChannelTab, setActiveChannelTab] = useState('');
   const [sending, setSending] = useState(false);
   const [totalStudents, setTotalStudents] = useState(null);
   const [scheduledAt, setScheduledAt] = useState('');
@@ -172,8 +178,22 @@ export default function CommunicatePage() {
     }
   };
 
+  const [campaignTemplates, setCampaignTemplates] = useState([]);
+  const [showCampaignTemplateModal, setShowCampaignTemplateModal] = useState(false);
+  const [editingCampaignTemplate, setEditingCampaignTemplate] = useState(null);
+  const [savingCampaignTemplate, setSavingCampaignTemplate] = useState(false);
+
+  const loadCampaignTemplates = async () => {
+    try {
+      const res = await api.get('/admin/me/campaign-templates');
+      setCampaignTemplates(res.data || []);
+    } catch (err) {
+      console.error('Failed to load campaign templates', err);
+    }
+  };
+
   useEffect(() => {
-    Promise.all([loadCredits(1), loadStudentCount(), loadRules(), loadClasses(), loadWhatsappTemplates()]).finally(() => setLoading(false));
+    Promise.all([loadCredits(1), loadStudentCount(), loadRules(), loadClasses(), loadWhatsappTemplates(), loadCampaignTemplates()]).finally(() => setLoading(false));
   }, []);
 
   const loadWhatsappTemplates = async (silent = false) => {
@@ -232,15 +252,75 @@ export default function CommunicatePage() {
     }
   };
 
+  const handleSaveCampaignTemplate = async (data) => {
+    setSavingCampaignTemplate(true);
+    try {
+      if (editingCampaignTemplate) {
+        await api.patch(`/admin/me/campaign-templates/${editingCampaignTemplate._id}`, data);
+        toast.success('Campaign template updated');
+      } else {
+        await api.post('/admin/me/campaign-templates', data);
+        toast.success('Campaign template created');
+      }
+      setShowCampaignTemplateModal(false);
+      loadCampaignTemplates();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to save campaign template');
+    } finally {
+      setSavingCampaignTemplate(false);
+    }
+  };
+
+  const handleDeleteCampaignTemplate = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this campaign template?')) return;
+    try {
+      await api.delete(`/admin/me/campaign-templates/${id}`);
+      toast.success('Campaign template deleted');
+      loadCampaignTemplates();
+    } catch (err) {
+      toast.error(err.response?.data?.message || err.message || 'Failed to delete campaign template');
+    }
+  };
+
   // Compute total balance across all paid channels for the simple top banner
   const totalBalance = balances ? (balances.sms + balances.whatsapp + balances.call) : 0;
 
   // Normal Send Logic
   const handleSendNormal = async () => {
-    if (!message.trim()) { toast.error('Please enter a message'); return; }
-
     const channels = mainTab === 'text' ? textChannels : voiceChannel;
     if (channels.length === 0) { toast.error('Please select at least one channel'); return; }
+
+    let payloadMessage = '';
+    let payloadMessages = null;
+
+    if (sendOption === 'quick') {
+      if (!message.trim()) { toast.error('Please enter a message'); return; }
+      if (channels.includes('whatsapp')) {
+        toast.error('Quick send is not allowed for WhatsApp. You must use a template.');
+        return;
+      }
+      payloadMessage = message.trim();
+    } else if (sendOption === 'template') {
+      if (!selectedCampaignTemplateId) { toast.error('Please select a campaign template'); return; }
+      const tmpl = campaignTemplates.find(t => t._id === selectedCampaignTemplateId);
+      if (!tmpl) return;
+      payloadMessages = {
+        sms: tmpl.smsBody,
+        email: { subject: tmpl.emailSubject, html: tmpl.emailBody },
+        whatsapp: tmpl.whatsappTemplateName,
+        call: tmpl.voiceBody
+      };
+      if (channels.includes('whatsapp') && !tmpl.whatsappTemplateName) {
+         toast.error('The selected campaign template does not have a WhatsApp template assigned.');
+         return;
+      }
+    } else if (sendOption === 'custom') {
+      payloadMessages = { ...messages };
+      if (channels.includes('whatsapp') && !payloadMessages.whatsapp) {
+        toast.error('Please select a WhatsApp template for the custom message.');
+        return;
+      }
+    }
 
     const target = { type: audience };
     if (audience === 'class') {
@@ -255,12 +335,14 @@ export default function CommunicatePage() {
     try {
       await adminService.communicate({
         channels,
-        message: message.trim(),
+        message: payloadMessage,
+        messages: payloadMessages,
         target,
         scheduledAt: scheduledAt || null
       });
-      toast.success(scheduledAt ? 'Message scheduled successfully' : 'Message sent successfully');
+      toast.success(scheduledAt ? 'Campaign scheduled successfully' : 'Communication campaign initiated. Messages are being processed in the background.');
       setMessage('');
+      setMessages({});
       setSelectedStudents([]);
       setSelectedClasses([]);
       setScheduledAt('');
@@ -298,7 +380,8 @@ export default function CommunicatePage() {
       const payload = reminderRules.map((r) => ({
         daysBefore: Number(r.daysBefore),
         timesPerDay: Number(r.timesPerDay),
-        channels: r.channels || ['sms']
+        channels: r.channels || ['sms'],
+        campaignTemplateId: r.campaignTemplateId || null
       }));
       await api.patch('/admin/me/reminder-settings', {
         reminderRules: payload,
@@ -328,6 +411,7 @@ export default function CommunicatePage() {
         daysAfter: Number(r.daysAfter),
         timesPerDay: Number(r.timesPerDay),
         channels: r.channels || ['sms'],
+        campaignTemplateId: r.campaignTemplateId || null
       }));
       await api.patch('/admin/me/overdue-settings', {
         overdueRules: payload,
@@ -358,6 +442,7 @@ export default function CommunicatePage() {
           intervalDays: id,
           timesPerDay: tp,
           channels: overdueRepeatRule?.channels || ['sms'],
+          campaignTemplateId: overdueRepeatRule?.campaignTemplateId || null
         },
         reminderMessageTemplate
       });
@@ -490,6 +575,9 @@ export default function CommunicatePage() {
                 <button onClick={() => setMsgType('whatsapp-templates')} className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${msgType === 'whatsapp-templates' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                   <MessageCircle size={16} /> WhatsApp Templates
                 </button>
+                <button onClick={() => setMsgType('campaign-templates')} className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${msgType === 'campaign-templates' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+                  <Layout size={16} /> Campaign Templates
+                </button>
               </div>
 
               {msgType === 'normal' && (
@@ -600,27 +688,127 @@ export default function CommunicatePage() {
                     )}
                   </div>
 
-                  {/* Templates */}
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-2 uppercase tracking-wider">Quick Templates</label>
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={() => setMessage("Dear Parent, this is a reminder to pay the pending fee for your child.")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Fee Reminder</button>
-                      <button onClick={() => setMessage("We have received your recent payment. Thank you!")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Payment Confirmation</button>
-                      <button onClick={() => setMessage("Important: School will remain closed tomorrow.")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Event Notice</button>
+                  {/* Content Composition */}
+                  <div className="space-y-4">
+                    <div className="flex gap-2 p-1 bg-slate-100 rounded-lg w-fit">
+                      <button onClick={() => setSendOption('quick')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${sendOption === 'quick' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Quick Send</button>
+                      <button onClick={() => setSendOption('template')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${sendOption === 'template' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Use Campaign Template</button>
+                      <button onClick={() => { setSendOption('custom'); setActiveChannelTab(textChannels[0] || 'sms'); }} className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${sendOption === 'custom' ? 'bg-white shadow text-slate-800' : 'text-slate-500'}`}>Per-Channel Custom</button>
                     </div>
-                  </div>
 
-                  {/* Textarea */}
-                  <div className="relative">
-                    <textarea
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      className="w-full h-[180px] border border-slate-200 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none outline-none"
-                      placeholder="Type your message here... Use {student_name} or {amount_due} for variables."
-                    />
-                    <div className="absolute bottom-4 right-4 bg-white/80 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-slate-500 border border-slate-100">
-                      {message.length} chars
-                    </div>
+                    {sendOption === 'quick' && (
+                      <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 mb-2 uppercase tracking-wider">Quick Templates</label>
+                          <div className="flex flex-wrap gap-2">
+                            <button onClick={() => setMessage("Dear Parent, this is a reminder to pay the pending fee for your child.")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Fee Reminder</button>
+                            <button onClick={() => setMessage("We have received your recent payment. Thank you!")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Payment Confirmation</button>
+                            <button onClick={() => setMessage("Important: School will remain closed tomorrow.")} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-left">Event Notice</button>
+                          </div>
+                        </div>
+                        <div className="relative">
+                          <textarea
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            className="w-full h-[180px] border border-slate-200 rounded-xl p-4 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 resize-none outline-none"
+                            placeholder="Type your message here... Use {student_name} or {amount_due} for variables."
+                          />
+                          <div className="absolute bottom-4 right-4 bg-white/80 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-slate-500 border border-slate-100">
+                            {message.length} chars
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {sendOption === 'template' && (
+                      <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                        <label className="block text-xs font-medium text-slate-700 mb-2 uppercase tracking-wider">Select Campaign Template</label>
+                        <Select 
+                          value={selectedCampaignTemplateId} 
+                          onChange={(e) => setSelectedCampaignTemplateId(e.target.value)}
+                          className="w-full"
+                        >
+                          <option value="">-- Select a Template --</option>
+                          {campaignTemplates.map(t => (
+                            <option key={t._id} value={t._id}>{t.name}</option>
+                          ))}
+                        </Select>
+                        {selectedCampaignTemplateId && (
+                          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
+                            Template selected. The appropriate message variant will be sent based on the selected channels.
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {sendOption === 'custom' && (
+                      <div className="border border-slate-200 rounded-xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+                        <div className="flex border-b border-slate-200 bg-slate-50">
+                          {(mainTab === 'text' ? textChannels : voiceChannel).map(ch => (
+                            <button 
+                              key={ch}
+                              onClick={() => setActiveChannelTab(ch)}
+                              className={`flex-1 py-2 text-xs font-bold uppercase transition-colors ${activeChannelTab === ch ? 'bg-white border-b-2 border-indigo-600 text-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
+                            >
+                              {ch}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="p-4">
+                          {activeChannelTab === 'sms' && (
+                            <textarea
+                              value={messages.sms || ''}
+                              onChange={(e) => setMessages(prev => ({ ...prev, sms: e.target.value }))}
+                              className="w-full h-[140px] border border-slate-200 rounded-xl p-3 text-sm focus:border-indigo-500 outline-none"
+                              placeholder="SMS content..."
+                            />
+                          )}
+                          {activeChannelTab === 'whatsapp' && (
+                            <div>
+                              <label className="block text-xs font-medium text-slate-700 mb-2">Select Meta Template</label>
+                              <Select
+                                value={messages.whatsapp || ''}
+                                onChange={(e) => setMessages(prev => ({ ...prev, whatsapp: e.target.value }))}
+                                className="w-full"
+                              >
+                                <option value="">-- Select --</option>
+                                {whatsappTemplates.filter(t => t.status === 'APPROVED').map(t => (
+                                  <option key={t.name} value={t.name}>{t.name}</option>
+                                ))}
+                              </Select>
+                              {whatsappTemplates.filter(t => t.status === 'APPROVED').length === 0 && (
+                                <p className="mt-2 text-[10px] text-amber-600 font-medium flex items-center gap-1 animate-pulse">
+                                  <AlertTriangle size={12} /> No approved templates found. Please sync with Meta first.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          {activeChannelTab === 'email' && (
+                            <div className="space-y-3">
+                              <Input 
+                                placeholder="Subject" 
+                                value={messages.email?.subject || ''}
+                                onChange={(e) => setMessages(prev => ({ ...prev, email: { ...prev.email, subject: e.target.value } }))}
+                              />
+                              <ReactQuill 
+                                theme="snow" 
+                                value={messages.email?.html || ''} 
+                                onChange={(val) => setMessages(prev => ({ ...prev, email: { ...prev.email, html: val } }))}
+                                className="bg-white rounded-xl"
+                              />
+                            </div>
+                          )}
+                          {activeChannelTab === 'call' && (
+                            <textarea
+                              value={messages.call || ''}
+                              onChange={(e) => setMessages(prev => ({ ...prev, call: e.target.value }))}
+                              className="w-full h-[140px] border border-slate-200 rounded-xl p-3 text-sm focus:border-indigo-500 outline-none"
+                              placeholder="Text-to-speech script..."
+                            />
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Action Row */}
@@ -746,18 +934,29 @@ export default function CommunicatePage() {
                     </div>
 
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                      <div className="grid grid-cols-[0.8fr_0.8fr_auto_auto] gap-3 mb-2 px-1">
+                      <div className="grid grid-cols-[0.6fr_0.6fr_auto_1fr_auto] gap-3 mb-2 px-1">
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Days before</span>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Frequency</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Freq</span>
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Channel</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Campaign Template</span>
                         <span className="w-8" />
                       </div>
                       <div className="space-y-3">
                         {reminderRules.map((rule, idx) => (
-                          <div key={idx} className="grid grid-cols-[0.8fr_0.8fr_auto_auto] gap-3 items-center">
+                          <div key={idx} className="grid grid-cols-[0.6fr_0.6fr_auto_1fr_auto] gap-3 items-center">
                             <Input placeholder="Days" type="number" value={rule.daysBefore} onChange={(e) => updateRule(idx, 'daysBefore', e.target.value)} />
                             <Input placeholder="Times" type="number" value={rule.timesPerDay} onChange={(e) => updateRule(idx, 'timesPerDay', e.target.value)} />
                             <RuleChannelToggle selected={rule.channels} onChange={(val) => updateRule(idx, 'channels', val)} />
+                            <Select 
+                              value={rule.campaignTemplateId || ''} 
+                              onChange={(e) => updateRule(idx, 'campaignTemplateId', e.target.value)}
+                              className="!py-2"
+                            >
+                              <option value="">Default fallback</option>
+                              {campaignTemplates.map(t => (
+                                <option key={t._id} value={t._id}>{t.name}</option>
+                              ))}
+                            </Select>
                             <button onClick={() => removeRule(idx)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
                           </div>
                         ))}
@@ -779,19 +978,30 @@ export default function CommunicatePage() {
                     </div>
 
                     <div className="bg-orange-50/50 border border-orange-100 rounded-xl p-4">
-                      <div className="grid grid-cols-[0.8fr_0.8fr_auto_auto] gap-3 mb-2 px-1">
+                      <div className="grid grid-cols-[0.6fr_0.6fr_auto_1fr_auto] gap-3 mb-2 px-1">
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Days after</span>
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Frequency</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Freq</span>
                         <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Channel</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Campaign Template</span>
                         <span className="w-8" />
                       </div>
                       {overdueRules.length === 0 && <p className="text-sm text-slate-400 mb-3 px-1">No rules yet.</p>}
                       <div className="space-y-3">
                         {overdueRules.map((rule, idx) => (
-                          <div key={idx} className="grid grid-cols-[0.8fr_0.8fr_auto_auto] gap-3 items-center">
+                          <div key={idx} className="grid grid-cols-[0.6fr_0.6fr_auto_1fr_auto] gap-3 items-center">
                             <Input placeholder="Days" type="number" value={rule.daysAfter} onChange={(e) => updateOverdueRule(idx, 'daysAfter', e.target.value)} />
                             <Input placeholder="Times" type="number" value={rule.timesPerDay} onChange={(e) => updateOverdueRule(idx, 'timesPerDay', e.target.value)} />
                             <RuleChannelToggle selected={rule.channels} onChange={(val) => updateOverdueRule(idx, 'channels', val)} />
+                            <Select 
+                              value={rule.campaignTemplateId || ''} 
+                              onChange={(e) => updateOverdueRule(idx, 'campaignTemplateId', e.target.value)}
+                              className="!py-2"
+                            >
+                              <option value="">Default fallback</option>
+                              {campaignTemplates.map(t => (
+                                <option key={t._id} value={t._id}>{t.name}</option>
+                              ))}
+                            </Select>
                             <button onClick={() => removeOverdueRule(idx)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
                           </div>
                         ))}
@@ -819,11 +1029,26 @@ export default function CommunicatePage() {
                         </button>
                       </div>
                       {repeatEnabled && (
-                        <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-center">
-                          <Input label="Interval (Days)" type="number" value={overdueRepeatRule?.intervalDays || ''} onChange={(e) => setOverdueRepeatRule(prev => ({ ...prev, intervalDays: e.target.value }))} />
-                          <Input label="Times per day" type="number" value={overdueRepeatRule?.timesPerDay || ''} onChange={(e) => setOverdueRepeatRule(prev => ({ ...prev, timesPerDay: e.target.value }))} />
-                          <div className="pt-6">
-                            <RuleChannelToggle selected={overdueRepeatRule?.channels} onChange={(val) => setOverdueRepeatRule(prev => ({ ...prev, channels: val }))} />
+                        <div className="space-y-4 animate-in slide-in-from-top-2">
+                          <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-center">
+                            <Input label="Interval (Days)" type="number" value={overdueRepeatRule?.intervalDays || ''} onChange={(e) => setOverdueRepeatRule(prev => ({ ...prev, intervalDays: e.target.value }))} />
+                            <Input label="Times per day" type="number" value={overdueRepeatRule?.timesPerDay || ''} onChange={(e) => setOverdueRepeatRule(prev => ({ ...prev, timesPerDay: e.target.value }))} />
+                            <div className="pt-6">
+                              <RuleChannelToggle selected={overdueRepeatRule?.channels} onChange={(val) => setOverdueRepeatRule(prev => ({ ...prev, channels: val }))} />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Campaign Template</label>
+                            <Select 
+                              value={overdueRepeatRule?.campaignTemplateId || ''} 
+                              onChange={(e) => setOverdueRepeatRule(prev => ({ ...prev, campaignTemplateId: e.target.value }))}
+                              className="w-full"
+                            >
+                              <option value="">Default fallback</option>
+                              {campaignTemplates.map(t => (
+                                <option key={t._id} value={t._id}>{t.name}</option>
+                              ))}
+                            </Select>
                           </div>
                         </div>
                       )}
@@ -833,6 +1058,45 @@ export default function CommunicatePage() {
                     </div>
                   </div>
 
+                </div>
+              )}
+
+              {msgType === 'campaign-templates' && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900">Campaign Templates</h3>
+                      <p className="text-sm text-slate-500">Create unified templates that span multiple channels.</p>
+                    </div>
+                    <Button onClick={() => { setEditingCampaignTemplate(null); setShowCampaignTemplateModal(true); }} size="sm" className="bg-indigo-600 hover:bg-indigo-700">
+                      <Plus size={16} /> Create Campaign Template
+                    </Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {campaignTemplates.map(tpl => (
+                      <div key={tpl._id} className="border border-slate-200 rounded-xl p-4 hover:border-indigo-300 transition-all bg-white shadow-sm">
+                        <div className="flex justify-between items-start">
+                          <h3 className="font-bold text-slate-800">{tpl.name}</h3>
+                          <div className="flex gap-2">
+                            <button onClick={() => { setEditingCampaignTemplate(tpl); setShowCampaignTemplateModal(true); }} className="p-1.5 text-slate-400 hover:text-indigo-600 bg-slate-50 rounded-lg"><Pencil size={14}/></button>
+                            <button onClick={() => handleDeleteCampaignTemplate(tpl._id)} className="p-1.5 text-slate-400 hover:text-red-600 bg-slate-50 rounded-lg"><Trash2 size={14}/></button>
+                          </div>
+                        </div>
+                        <div className="mt-4 flex gap-2 flex-wrap">
+                          {tpl.smsBody && <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wide">SMS</span>}
+                          {tpl.emailBody && <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wide">Email</span>}
+                          {tpl.whatsappTemplateName && <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wide">WhatsApp</span>}
+                          {tpl.voiceBody && <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded font-bold uppercase tracking-wide">Voice</span>}
+                        </div>
+                      </div>
+                    ))}
+                    {campaignTemplates.length === 0 && (
+                      <div className="col-span-full py-12 text-center bg-slate-50 rounded-xl border border-slate-200">
+                         <p className="text-sm text-slate-500 font-medium">No campaign templates yet.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1053,6 +1317,15 @@ export default function CommunicatePage() {
           </div>
         </div>
       </div>
+      {showCampaignTemplateModal && (
+        <CampaignTemplateModal
+          template={editingCampaignTemplate}
+          whatsappTemplates={whatsappTemplates}
+          onClose={() => setShowCampaignTemplateModal(false)}
+          onSave={handleSaveCampaignTemplate}
+          loading={savingCampaignTemplate}
+        />
+      )}
       {showTemplateModal && (
         <TemplateModal
           template={editingTemplate}
@@ -1201,7 +1474,7 @@ const TemplateModal = ({ template, onClose, onSave, loading }) => {
                 label="Template Name"
                 placeholder="e.g. fee_reminder_june"
                 value={data.name}
-                onChange={e => setData({ ...data, name: e.target.value.toLowerCase().replace(/\s/g, '_') })}
+                onChange={e => setData({ ...data, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
                 disabled={!!template}
               />
               <Select
@@ -1276,6 +1549,139 @@ const TemplateModal = ({ template, onClose, onSave, loading }) => {
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button loading={loading} onClick={() => onSave(data)}>
             {template ? 'Update Template' : 'Create & Sync Template'}
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+const CampaignTemplateModal = ({ template, whatsappTemplates, onClose, onSave, loading }) => {
+  const [data, setData] = useState({
+    name: template?.name || '',
+    smsBody: template?.smsBody || '',
+    emailSubject: template?.emailSubject || '',
+    emailBody: template?.emailBody || '',
+    whatsappTemplateName: template?.whatsappTemplateName || '',
+    voiceBody: template?.voiceBody || '',
+  });
+
+  const [activeTab, setActiveTab] = useState('sms');
+
+  return createPortal(
+    <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">{template ? 'Edit Campaign Template' : 'Create Campaign Template'}</h2>
+            <p className="text-sm text-slate-500">Define messages for all channels in one place.</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500">
+            <XIcon size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <Input
+            label="Template Name"
+            placeholder="e.g. Fee Reminder Campaign"
+            value={data.name}
+            onChange={e => setData({ ...data, name: e.target.value })}
+          />
+
+          <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="flex bg-slate-50 border-b border-slate-200">
+              {['sms', 'email', 'whatsapp', 'voice'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 py-3 text-xs font-bold uppercase transition-all ${activeTab === tab ? 'bg-white border-b-2 border-indigo-600 text-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
+                >
+                  {tab === 'voice' ? 'Voice' : tab}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-6">
+              {activeTab === 'sms' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 uppercase">SMS Content</label>
+                  <textarea
+                    className="w-full h-32 p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none"
+                    placeholder="Type SMS message..."
+                    value={data.smsBody}
+                    onChange={e => setData({ ...data, smsBody: e.target.value })}
+                  />
+                </div>
+              )}
+
+              {activeTab === 'email' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-700 uppercase">Email Subject</label>
+                    <Input
+                      placeholder="Email subject line"
+                      value={data.emailSubject}
+                      onChange={e => setData({ ...data, emailSubject: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-700 uppercase">Email Body (Rich Text)</label>
+                    <div className="h-64 mb-12">
+                      <ReactQuill
+                        theme="snow"
+                        value={data.emailBody}
+                        onChange={val => setData({ ...data, emailBody: val })}
+                        className="h-full rounded-xl"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'whatsapp' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-700 uppercase">WhatsApp Template</label>
+                    <p className="text-xs text-slate-500 mb-2">Select an approved Meta template for this campaign.</p>
+                      <Select
+                        value={data.whatsappTemplateName}
+                        onChange={e => setData({ ...data, whatsappTemplateName: e.target.value })}
+                      >
+                        <option value="">-- Select Template --</option>
+                        {whatsappTemplates.filter(t => t.status === 'APPROVED').map(t => (
+                          <option key={t.name} value={t.name}>{t.name}</option>
+                        ))}
+                      </Select>
+                      {whatsappTemplates.filter(t => t.status === 'APPROVED').length === 0 && (
+                        <p className="mt-1 text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                          <AlertTriangle size={12} /> No approved templates available to select.
+                        </p>
+                      )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'voice' && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-700 uppercase">Voice Script (TTS)</label>
+                  <textarea
+                    className="w-full h-32 p-3 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none"
+                    placeholder="Type script for text-to-speech..."
+                    value={data.voiceBody}
+                    onChange={e => setData({ ...data, voiceBody: e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50">
+          <button onClick={onClose} className="px-6 py-2 text-sm font-bold text-slate-600 hover:text-slate-900">Cancel</button>
+          <Button loading={loading} onClick={() => onSave(data)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8">
+            {template ? 'Update Template' : 'Create Template'}
           </Button>
         </div>
       </div>

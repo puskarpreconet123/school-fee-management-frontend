@@ -37,6 +37,7 @@ const Select = forwardRef(function Select(
             {opt.label}
           </option>
         ))}
+        {props.children}
       </select>
       {error && <p className="text-xs text-red-600">{error}</p>}
     </div>
