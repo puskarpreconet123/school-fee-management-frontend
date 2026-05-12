@@ -18,4 +18,7 @@ export const adminService = {
 
   // WhatsApp config
   updateWhatsappConfig: (data) => api.patch('/admin/me/whatsapp-config', data),
+
+  // SMS config
+  updateSMSConfig: (data) => api.patch('/admin/me/sms-config', data),
 };

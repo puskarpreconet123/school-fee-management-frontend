@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MessageSquare, MessageCircle, Phone, Send, Users, Mail, Bell, RefreshCw, Plus, Trash2, Save, CheckCircle, AlertTriangle, X as XIcon, Pencil, Info, Layout, ExternalLink, Eye } from 'lucide-react';
+import { MessageSquare, MessageCircle, Phone, Send, Users, Mail, Bell, RefreshCw, Plus, Trash2, Save, CheckCircle, AlertTriangle, X as XIcon, Pencil, Info, Layout, ExternalLink, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card, { CardHeader } from '../../components/ui/Card';
 import Input from '../../components/ui/Input';
@@ -16,10 +16,28 @@ import { toast } from '../../store/useToastStore';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
+const WhatsAppIcon = ({ size = 24, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M3.50002 12C3.50002 7.30558 7.3056 3.5 12 3.5C16.6944 3.5 20.5 7.30558 20.5 12C20.5 16.6944 16.6944 20.5 12 20.5C10.3278 20.5 8.77127 20.0182 7.45798 19.1861C7.21357 19.0313 6.91408 18.9899 6.63684 19.0726L3.75769 19.9319L4.84173 17.3953C4.96986 17.0955 4.94379 16.7521 4.77187 16.4751C3.9657 15.176 3.50002 13.6439 3.50002 12ZM12 1.5C6.20103 1.5 1.50002 6.20101 1.50002 12C1.50002 13.8381 1.97316 15.5683 2.80465 17.0727L1.08047 21.107C0.928048 21.4637 0.99561 21.8763 1.25382 22.1657C1.51203 22.4552 1.91432 22.5692 2.28599 22.4582L6.78541 21.1155C8.32245 21.9965 10.1037 22.5 12 22.5C17.799 22.5 22.5 17.799 22.5 12C22.5 6.20101 17.799 1.5 12 1.5ZM14.2925 14.1824L12.9783 15.1081C12.3628 14.7575 11.6823 14.2681 10.9997 13.5855C10.2901 12.8759 9.76402 12.1433 9.37612 11.4713L10.2113 10.7624C10.5697 10.4582 10.6678 9.94533 10.447 9.53028L9.38284 7.53028C9.23954 7.26097 8.98116 7.0718 8.68115 7.01654C8.38113 6.96129 8.07231 7.046 7.84247 7.24659L7.52696 7.52195C6.76823 8.18414 6.3195 9.2723 6.69141 10.3741C7.07698 11.5163 7.89983 13.314 9.58552 14.9997C11.3991 16.8133 13.2413 17.5275 14.3186 17.8049C15.1866 18.0283 16.008 17.7288 16.5868 17.2572L17.1783 16.7752C17.4313 16.5691 17.5678 16.2524 17.544 15.9269C17.5201 15.6014 17.3389 15.308 17.0585 15.1409L15.3802 14.1409C15.0412 13.939 14.6152 13.9552 14.2925 14.1824Z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
 const RuleChannelToggle = ({ selected = [], onChange }) => {
   const channels = [
     { id: 'sms', icon: <MessageSquare size={14} />, label: 'SMS' },
-    { id: 'whatsapp', icon: <MessageCircle size={14} />, label: 'WP' },
+    { id: 'whatsapp', icon: <WhatsAppIcon size={14} />, label: 'WP' },
     { id: 'email', icon: <Mail size={14} />, label: 'Email' },
     { id: 'call', icon: <Phone size={14} />, label: 'Voice' },
   ];
@@ -54,7 +72,7 @@ const RuleChannelToggle = ({ selected = [], onChange }) => {
 
 const TEXT_OPTIONS = [
   { value: 'sms', label: 'SMS', icon: MessageSquare, cost: 0.12 },
-  { value: 'whatsapp', label: 'WhatsApp', icon: MessageSquare, cost: 0.12 },
+  { value: 'whatsapp', label: 'WhatsApp', icon: WhatsAppIcon, cost: 0.12 },
   { value: 'email', label: 'Email', icon: Mail, cost: 0 },
 ];
 
@@ -101,6 +119,16 @@ export default function CommunicatePage() {
   const [sendOption, setSendOption] = useState('quick'); // 'quick', 'custom', 'template'
   const [activeChannelTab, setActiveChannelTab] = useState('');
   const [sending, setSending] = useState(false);
+
+  // Sync active tab with selected channels
+  useEffect(() => {
+    if (sendOption !== 'custom') return;
+    const currentChannels = mainTab === 'text' ? textChannels : voiceChannel;
+    if (!currentChannels.includes(activeChannelTab)) {
+      setActiveChannelTab(currentChannels[0] || '');
+    }
+  }, [textChannels, voiceChannel, mainTab, sendOption]);
+
   const [totalStudents, setTotalStudents] = useState(null);
   const [scheduledAt, setScheduledAt] = useState('');
   const [showScheduler, setShowScheduler] = useState(false);
@@ -573,7 +601,7 @@ export default function CommunicatePage() {
                   <Bell size={16} /> Automated Reminders
                 </button>
                 <button onClick={() => setMsgType('whatsapp-templates')} className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${msgType === 'whatsapp-templates' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
-                  <MessageCircle size={16} /> WhatsApp Templates
+                  <WhatsAppIcon size={16} /> WhatsApp Templates
                 </button>
                 <button onClick={() => setMsgType('campaign-templates')} className={`pb-3 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${msgType === 'campaign-templates' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                   <Layout size={16} /> Campaign Templates
@@ -754,7 +782,7 @@ export default function CommunicatePage() {
                             </button>
                           ))}
                         </div>
-                        <div className="p-4">
+                        <div className="p-4" key={activeChannelTab}>
                           {activeChannelTab === 'sms' && (
                             <textarea
                               value={messages.sms || ''}
@@ -1239,79 +1267,89 @@ export default function CommunicatePage() {
             </button>
           </div>
 
-          {/* Delivery Status */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 shadow-sm">
-            <h4 className="text-base font-bold text-slate-900 mb-4">Delivery Status</h4>
-            <div className="grid grid-cols-1 gap-3">
-              <div className="flex items-center justify-between p-3 bg-green-50 border border-green-100 rounded-lg">
-                <div className="flex items-center gap-2 text-green-700">
-                  <CheckCircle size={16} />
-                  <span className="text-xs font-bold uppercase tracking-wider">Delivered</span>
-                </div>
-                <span className="font-black text-green-700">98%</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-amber-50 border border-amber-100 rounded-lg">
-                <div className="flex items-center gap-2 text-amber-700">
-                  <span className="material-symbols-outlined text-[16px]">schedule</span>
-                  <span className="text-xs font-bold uppercase tracking-wider">Pending</span>
-                </div>
-                <span className="font-black text-amber-700">1.5%</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-red-50 border border-red-100 rounded-lg">
-                <div className="flex items-center gap-2 text-red-700">
-                  <AlertTriangle size={16} />
-                  <span className="text-xs font-bold uppercase tracking-wider">Failed</span>
-                </div>
-                <span className="font-black text-red-700">0.5%</span>
-              </div>
-            </div>
-          </div>
 
           {/* Recent Transactions */}
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-slate-100">
-              <h4 className="text-base font-bold text-slate-900">Recent Activity</h4>
+          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm flex flex-col max-h-[600px]">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-4 bg-indigo-600 rounded-full" />
+                <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Recent Activity</h4>
+              </div>
+              <Badge variant="outline" className="text-[10px] font-bold">{ledgerMeta.total || 0} Total</Badge>
             </div>
-            <div className="p-0">
+            
+            <div className="flex-1 overflow-y-auto no-scrollbar">
               {ledger.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-6">No transactions yet.</p>
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                  <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 mb-3">
+                    <RefreshCw size={20} />
+                  </div>
+                  <p className="text-xs font-bold text-slate-400">No activity yet</p>
+                  <p className="text-[10px] text-slate-300 mt-1">Transaction history will appear here</p>
+                </div>
               ) : (
-                <table className="w-full text-left">
-                  <tbody className="divide-y divide-slate-50">
-                    {ledger.map((entry) => (
-                      <tr key={entry._id} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className={`p-1.5 rounded-lg ${entry.type === 'TOPUP' ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-600'}`}>
-                              <span className="material-symbols-outlined text-sm">{entry.type === 'TOPUP' ? 'add_circle' : 'chat'}</span>
-                            </div>
-                            <div>
-                              <p className="text-xs font-bold text-slate-800">
-                                {entry.type === 'TOPUP' ? 'Credit Purchase' : entry.channel?.toUpperCase()}
-                              </p>
-                              <p className="text-[10px] text-slate-500">
-                                {entry.recipientCount ? `${entry.recipientCount} Recp • ` : ''} {formatDate(entry.createdAt)}
-                              </p>
-                            </div>
+                <div className="divide-y divide-slate-50">
+                  {ledger.map((entry) => (
+                    <div key={entry._id} className="p-3.5 hover:bg-slate-50/80 transition-all group cursor-default">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className={classNames(
+                            'w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110 duration-200',
+                            entry.type === 'TOPUP' ? 'bg-green-100 text-green-600' : 'bg-indigo-50 text-indigo-600'
+                          )}>
+                            {entry.type === 'TOPUP' ? <Plus size={16} strokeWidth={3} /> : (
+                              entry.channel === 'whatsapp' ? <WhatsAppIcon size={16} /> : 
+                              entry.channel === 'sms' ? <MessageSquare size={16} /> : <Phone size={16} />
+                            )}
                           </div>
-                        </td>
-                        <td className="p-4 text-right">
-                          <span className={`text-xs font-black ${entry.type === 'TOPUP' ? 'text-green-600' : 'text-slate-600'}`}>
+                          <div>
+                            <p className="text-xs font-black text-slate-800 leading-tight">
+                              {entry.type === 'TOPUP' ? 'Credit Purchase' : (
+                                <span className="uppercase tracking-wider">{entry.channel}</span>
+                              )}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-medium mt-1">
+                              {entry.recipientCount ? `${entry.recipientCount} Recipients • ` : ''} 
+                              {new Date(entry.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={classNames(
+                            'text-xs font-black tracking-tight',
+                            entry.type === 'TOPUP' ? 'text-green-600' : 'text-slate-600'
+                          )}>
                             {entry.type === 'TOPUP' ? '+' : '-'}{entry.amount.toFixed(2)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          </p>
+                          <p className="text-[9px] text-slate-300 font-bold uppercase tracking-tighter">Credits</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
             {ledgerMeta.pages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-50 bg-slate-50/50">
-                <Button variant="secondary" size="sm" disabled={ledgerPage <= 1} onClick={() => loadCredits(ledgerPage - 1)}>Prev</Button>
-                <span className="text-xs text-slate-500 font-bold">{ledgerPage} / {ledgerMeta.pages}</span>
-                <Button variant="secondary" size="sm" disabled={ledgerPage >= ledgerMeta.pages} onClick={() => loadCredits(ledgerPage + 1)}>Next</Button>
+              <div className="p-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between sticky bottom-0 z-10 backdrop-blur-sm">
+                <button 
+                  disabled={ledgerPage <= 1} 
+                  onClick={() => loadCredits(ledgerPage - 1)}
+                  className="p-2 rounded-lg hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all text-slate-500 border border-transparent hover:border-slate-200 hover:shadow-sm"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Page</span>
+                  <span className="text-xs font-black text-indigo-600">{ledgerPage} <span className="text-slate-300">/</span> {ledgerMeta.pages}</span>
+                </div>
+                <button 
+                  disabled={ledgerPage >= ledgerMeta.pages} 
+                  onClick={() => loadCredits(ledgerPage + 1)}
+                  className="p-2 rounded-lg hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all text-slate-500 border border-transparent hover:border-slate-200 hover:shadow-sm"
+                >
+                  <ChevronRight size={18} />
+                </button>
               </div>
             )}
           </div>
