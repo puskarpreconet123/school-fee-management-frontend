@@ -14,18 +14,27 @@ const styles = {
   phonepe:  'bg-purple-50 text-purple-700 ring-purple-200',
 };
 
-export default function Badge({ label, variant, className = '' }) {
+export default function Badge({ children, label, variant, className = '' }) {
+  const variants = {
+    SUCCESS: 'bg-green-50 text-green-700 ring-green-600/20',
+    PENDING: 'bg-yellow-50 text-yellow-700 ring-yellow-600/20',
+    FAILED: 'bg-red-50 text-red-700 ring-red-600/20',
+    INFO: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+    outline: 'bg-transparent text-slate-500 ring-slate-200',
+    ...styles
+  };
+
   const key = variant || label;
   return (
     <span
       className={classNames(
-        'inline-flex items-center rounded-full px-2.5 py-0.5',
-        'text-xs font-medium ring-1 ring-inset',
-        styles[key] || 'bg-gray-100 text-gray-600 ring-gray-200',
+        'inline-flex items-center rounded-md px-2 py-0.5',
+        'text-xs font-bold ring-1 ring-inset transition-colors',
+        variants[key] || 'bg-slate-100 text-slate-600 ring-slate-200',
         className
       )}
     >
-      {label}
+      {children || label}
     </span>
   );
 }

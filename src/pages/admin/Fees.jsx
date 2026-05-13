@@ -30,7 +30,7 @@ const EMPTY_FORM = {
   amount: '', 
   type: 'one-time', // 'one-time' or 'periodic'
   dueDate: '', 
-  endDate: '', 
+  installmentsCount: '1', 
   dueDay: '10',
   description: '' 
 };
@@ -102,7 +102,7 @@ export default function FeesPage() {
     if (form.type === 'one-time') {
       if (!form.dueDate) e.dueDate = 'Due date is required';
     } else {
-      if (!form.endDate) e.endDate = 'End date is required';
+      if (!form.installmentsCount || Number(form.installmentsCount) < 1) e.installmentsCount = 'Required (min 1)';
       if (!form.dueDay) e.dueDay = 'Due day is required';
     }
     
@@ -127,7 +127,7 @@ export default function FeesPage() {
       if (form.type === 'one-time') {
         payload.dueDate = form.dueDate;
       } else {
-        payload.endDate = form.endDate;
+        payload.installmentsCount = Number(form.installmentsCount);
         payload.dueDay = Number(form.dueDay);
       }
 
@@ -338,7 +338,7 @@ export default function FeesPage() {
           </div>
 
           {form.type === 'periodic' && (
-            <Input label="End Date (Generates monthly until this date)" type="date" min={todayISO} value={form.endDate} onChange={field('endDate')} error={formErrors.endDate} required />
+            <Input label="Number of Installments" type="number" min="1" value={form.installmentsCount} onChange={field('installmentsCount')} error={formErrors.installmentsCount} required />
           )}
 
           <Input label="Description" value={form.description} onChange={field('description')} placeholder="Optional note" />

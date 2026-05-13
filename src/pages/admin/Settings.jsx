@@ -202,7 +202,6 @@ export default function SettingsPage() {
   const DEFAULT_EMAIL_CONFIG = { host: '', port: 587, secure: false, user: '', pass: '', from: '', useCustom: false };
   const [emailConfig, setEmailConfig] = useState(DEFAULT_EMAIL_CONFIG);
   const [savingComm, setSavingComm] = useState(false);
-  const [testingEmail, setTestingEmail] = useState(false);
   const [showEmailPass, setShowEmailPass] = useState(false);
   const [editingEmail, setEditingEmail] = useState(false);
 

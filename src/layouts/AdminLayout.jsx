@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Receipt, CreditCard, Settings,
-  LogOut, Menu, X, GraduationCap, Bell, TrendingUp, MessageSquare
+  LogOut, Menu, X, GraduationCap, Bell, TrendingUp, MessageSquare, Layers
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import { authService } from '../services/auth.service';
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: '/admin/analytics',  label: 'Analytics',     icon: TrendingUp },
   { to: '/admin/students',   label: 'Students',      icon: Users },
   { to: '/admin/fees',       label: 'Fees',          icon: Receipt },
+  { to: '/admin/installments', label: 'Installments',  icon: Layers },
   { to: '/admin/payments',   label: 'Payments',      icon: CreditCard },
   { to: '/admin/notices',      label: 'Announcements', icon: Bell },
   { to: '/admin/communicate',  label: 'Communicate',   icon: MessageSquare },

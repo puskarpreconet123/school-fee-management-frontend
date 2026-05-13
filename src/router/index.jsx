@@ -11,6 +11,7 @@ import AdminLogin       from '../pages/admin/Login';
 import AdminDashboard   from '../pages/admin/Dashboard';
 import StudentsPage     from '../pages/admin/Students';
 import FeesPage         from '../pages/admin/Fees';
+import InstallmentsPage from '../pages/admin/Installments';
 import PaymentsPage     from '../pages/admin/Payments';
 import SettingsPage     from '../pages/admin/Settings';
 import AdminNotices     from '../pages/admin/Notices';
@@ -105,6 +106,7 @@ export const router = createBrowserRouter([
       { path: 'dashboard', element: <AdminDashboard /> },
       { path: 'students',  element: <StudentsPage /> },
       { path: 'fees',      element: <FeesPage /> },
+      { path: 'installments', element: <InstallmentsPage /> },
       { path: 'payments',  element: <PaymentsPage /> },
       { path: 'notices',      element: <AdminNotices /> },
       { path: 'analytics',   element: <AdminAnalytics /> },
